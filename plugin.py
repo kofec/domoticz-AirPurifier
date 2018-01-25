@@ -132,6 +132,40 @@ class ConnectionErrorException(Exception):
         self.expression = expression
         self.message = message
 
+# temporery class
+
+class AirStatus:
+    """Container for status reports from the air purifier."""
+
+    def __init__(self, AddressIP, token):
+        """
+        Response of script:
+
+               "<AirPurifierStatus power=on, aqi=10,average_aqi=8,temperature=21.9, humidity=36%," \
+               "mode=OperationMode.Silent,led=True,led_brightness=LedBrightness.Bright,buzzer=False, " \
+               "child_lock=False,favorite_level=10,filter_life_remaining=70, filter_hours_used=1044, " \
+               "use_time=3748042, purify_volume=38007, motor_speed=354> "
+        """
+
+        addressIP = str(AddressIP)
+        token = str(token)
+        import subprocess
+        data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
+        data = str(data.decode('utf-8'))
+        if Parameters["Mode6"] == 'Debug':
+            Domoticz.Debug(data[:30] + " .... " + data[-30:])
+        data = data[19:-2]
+        data = data.replace(' ', '')
+        data = dict(item.split("=") for item in data.split(","))
+        self.aqi = data["aqi"]
+        self.average_aqi = data["average_aqi"]
+        self.power = data["power"]
+        self.humidity = int(data["humidity"][:-1])
+        self.temperature = data["temperature"]
+        self.mode = data["mode"]
+        self.favorite_level = data["favorite_level"]
+        self.motor_speed = data["motor_speed"]
+
 class BasePlugin:
     enabled = False
 
@@ -363,20 +397,7 @@ class BasePlugin:
             # and time between last fetch has elapsed
             self.inProgress = True
 
-            addressIP = str(Parameters["Address"])
-            token = str(Parameters["Mode1"])
-            MyAir = miio.airpurifier.AirPurifier(addressIP, token)
-            if Parameters["Mode6"] == 'Debug':
-                Domoticz.Debug(str(MyAir.info()))
-
-            try:
-                res = MyAir.status()
-            except Exception as e:
-                # reset nextpool datestamp to force running in next run
-                self.postponeNextPool(seconds=0)
-                raise ConnectionErrorException('', str(e))
-
-#            res = self.sensor_measurement(Parameters["Address"], Parameters["Mode1"])
+            res = self.sensor_measurement(Parameters["Address"], Parameters["Mode1"])
 
             try:
                 self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
@@ -447,8 +468,6 @@ class BasePlugin:
             except KeyError:
                 pass  # No motor_speed value
 
-            del res
-            del MyAir
             self.doUpdate()
         except Exception as e:
             Domoticz.Error(_("Unrecognized error: %s") % str(e))
@@ -478,21 +497,22 @@ class BasePlugin:
 
     def sensor_measurement(self, addressIP, token):
         """current sensor measurements"""
+        return AirStatus(addressIP, token)
+#        addressIP = str(addressIP)
+#        token = str(token)
+#        MyAir = miio.airpurifier.AirPurifier(addressIP, token)
+#        if Parameters["Mode6"] == 'Debug':
+#            Domoticz.Debug(str(MyAir.info()))
+#
+#        try:
+#            response_object = MyAir.status()
+#        except Exception as e:
+#            # reset nextpool datestamp to force running in next run
+#            self.postponeNextPool(seconds=0)
+#            raise ConnectionErrorException('', str(e))
+#
+#        return response_object
 
-        addressIP = str(addressIP)
-        token = str(token)
-        MyAir = miio.airpurifier.AirPurifier(addressIP, token)
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug(str(MyAir.info()))
-
-        try:
-            response_object = MyAir.status()
-        except Exception as e:
-            # reset nextpool datestamp to force running in next run
-            self.postponeNextPool(seconds=0)
-            raise ConnectionErrorException('', str(e))
-
-        return response_object
 
 global _plugin
 _plugin = BasePlugin()
