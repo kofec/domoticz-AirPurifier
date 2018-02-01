@@ -32,22 +32,30 @@ import Domoticz
 import sys
 import datetime
 import socket
+import subprocess
 # Python framework in Domoticz do not include OS dependent path
 #
+from pathlib import Path
 
-if sys.platform.startswith('linux'):
-    # linux specific code here#
-    sys.path.append('/usr/local/lib/python3.5/dist-packages')
-    sys.path.append('/usr/lib/python3/dist-packages')
-elif sys.platform.startswith('darwin'):
-    # mac
-    sys.path.append(os.path.dirname(os.__file__) + '/site-packages')
-elif sys.platform.startswith('win32'):
-    #  win specific
-    sys.path.append(os.path.dirname(os.__file__) + '\site-packages')
+pathOfPackages = '/usr/local/lib/python3.5/dist-packages'
 
-import miio.airpurifier
+if Path(pathOfPackages).exists():
+    sys.path.append(pathOfPackages)
+else:
+    Domoticz.Log("It can be an issue with import package miio.airpurifier")
+    Domoticz.Log("Find where is located package miio.airpurifier and correct variable: pathOfPackages")
+    Domoticz.Log("pathOfPackages:", pathOfPackages)
 
+pathOfPackages = '/usr/lib/python3/dist-packages'
+
+if Path(pathOfPackages).exists():
+    sys.path.append(pathOfPackages)
+    import miio.airpurifier
+else:
+    Domoticz.Log("It can be an issue with import package miio.airpurifier")
+    Domoticz.Log("Find where is located package miio.airpurifier and correct variable: pathOfPackages")
+    Domoticz.Log("pathOfPackages:", pathOfPackages)
+    import miio.airpurifier
 
 L10N = {
     'pl': {
@@ -149,7 +157,6 @@ class AirStatus:
 
         addressIP = str(AddressIP)
         token = str(token)
-        import subprocess
         data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
         data = str(data.decode('utf-8'))
         if Parameters["Mode6"] == 'Debug':
@@ -313,6 +320,26 @@ class BasePlugin:
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Log(
             "onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+
+        # Parameters["Address"] - IP address, Parameters["Mode1"] - token
+        commandToCall = './MyAir.py ' + Parameters["Address"] + ' ' + Parameters["Mode1"] + ' '
+        if Unit == self.UNIT_POWER_CONTROL:
+            commandToCall += '--power=' + str(Command).upper()
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
+            commandToCall += '--mode=Auto'
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
+            commandToCall += '--mode=Silent'
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
+            commandToCall += '--mode=Favorite'
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
+            commandToCall += '--mode=Idle'
+        elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
+            commandToCall += '--favoriteLevel=' + str(int(int(Level)/10))
+        else:
+            Domoticz.Log("onCommand called not found")
+
+        if Parameters["Mode6"] == 'Debug':
+            Domoticz.Debug("Call command: " + commandToCall)
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
