@@ -16,7 +16,7 @@ git clone https://github.com/kofec/domoticz-AirPurifier
 First use script "MyAir.py" to verify if you have needed python modules
 e.g: 
 ```
-./MyAir.py 192.168.1.1 850000000000000000000000002
+./MyAir.py 192.168.1.1 850000000000000000000000002 --debug
 ./MyAir.py -h
 usage: MyAir.py [-h] [--mode {Auto,Favorite,Idle,Silent}]
                 [--favoriteLevel {0,1,2,3,4,5,6,7,8,9,10}] [--power {ON,OFF}]
