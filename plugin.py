@@ -172,6 +172,8 @@ class AirStatus:
         self.mode = data["mode"]
         self.favorite_level = data["favorite_level"]
         self.motor_speed = data["motor_speed"]
+        for item in data.keys():
+            Domoticz.Debug(str(item) + " => " + str(data[item]))
 
 class BasePlugin:
     enabled = False
@@ -340,6 +342,11 @@ class BasePlugin:
 
         if Parameters["Mode6"] == 'Debug':
             Domoticz.Debug("Call command: " + commandToCall)
+        data = subprocess.check_output(['bash', '-c', commandToCall], cwd=Parameters["HomeFolder"])
+        data = str(data.decode('utf-8'))
+        if Parameters["Mode6"] == 'Debug':
+            Domoticz.Debug(data)
+        self.onHeartbeat(fetch=True)
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
@@ -495,6 +502,31 @@ class BasePlugin:
             except KeyError:
                 pass  # No motor_speed value
 
+            try:
+                if res.power == "on":
+                    UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
+                elif res.power == "off":
+                    UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
+            except KeyError:
+                pass  # No power value
+
+            try:
+                if res.mode == "OperationMode.Auto":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
+                elif res.mode == "OperationMode.Silent":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
+                elif res.mode == "OperationMode.Favorite":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
+                elif res.mode == "OperationMode.Idle":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
+            except KeyError:
+                pass  # No mode value
+
+            try:
+                UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(res.favorite_level)*10))
+            except KeyError:
+                pass  # No motor_speed value
+
             self.doUpdate()
         except Exception as e:
             Domoticz.Error(_("Unrecognized error: %s") % str(e))
@@ -589,4 +621,12 @@ def DumpConfigToLog():
         Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
+    return
+
+def UpdateDevice(Unit, nValue, sValue):
+    # Make sure that the Domoticz device still exists (they can be deleted) before updating it
+    if (Unit in Devices):
+        if (Devices[Unit].nValue != nValue) or (Devices[Unit].sValue != sValue):
+            Devices[Unit].Update(nValue=nValue, sValue=str(sValue))
+            Domoticz.Log("Update " + str(nValue) + ":'" + str(sValue) + "' (" + Devices[Unit].Name + ")")
     return
