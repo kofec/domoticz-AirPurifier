@@ -13,7 +13,7 @@ Domoticz plugin for Xiaomi AirPurifier 2
 cd YOUR_DOMOTICZ_PATH/plugins
 git clone https://github.com/kofec/domoticz-AirPurifier
 ```
-First use script "tinycontrol.py" to verify if you have needed python modules
+First use script "MyAir.py" to verify if you have needed python modules
 e.g: 
 ```
 ./MyAir.py 192.168.1.1 850000000000000000000000002
