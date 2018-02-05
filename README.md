@@ -7,12 +7,7 @@ Domoticz plugin for Xiaomi AirPurifier 2
 ## Installation
 
 ```
-Latest version of library has a bug: https://github.com/rytilahti/python-miio/issues/201
-
-you have to downgrade - so please execute:
-
-pip3 install -U python-miio==0.3.3
-pip3 install -U construct==2.8.17
+pip3 install -U python-miio
 ```
 
 * Make sure your Domoticz instance supports Domoticz Plugin System - see more https://www.domoticz.com/wiki/Using_Python_plugins
