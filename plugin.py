@@ -33,30 +33,13 @@ import sys
 import datetime
 import socket
 import subprocess
-# Python framework in Domoticz do not include OS dependent path
-#
-from pathlib import Path
+import site
+path=''
+path=site.getsitepackages()
+for i in path:
+    sys.path.append(i)
 
-pathOfPackages = '/usr/local/lib/python3.5/dist-packages'
-
-if Path(pathOfPackages).exists():
-    sys.path.append(pathOfPackages)
-else:
-    Domoticz.Log("It can be an issue with import package miio.airpurifier")
-    Domoticz.Log("Find where is located package miio.airpurifier and correct variable: pathOfPackages")
-    Domoticz.Log("pathOfPackages:", pathOfPackages)
-    Domoticz.Log("Domoticz see paths:", str(sys.path))
-
-pathOfPackages = '/usr/lib/python3/dist-packages'
-
-if Path(pathOfPackages).exists():
-    sys.path.append(pathOfPackages)
-    import miio.airpurifier
-else:
-    Domoticz.Log("It can be an issue with import package miio.airpurifier")
-    Domoticz.Log("Find where is located package miio.airpurifier and correct variable: pathOfPackages")
-    Domoticz.Log("pathOfPackages:", pathOfPackages)
-    import miio.airpurifier
+import miio.airpurifier
 
 L10N = {
     'pl': {

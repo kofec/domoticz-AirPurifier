@@ -2,27 +2,13 @@
 
 import sys
 import argparse
-from pathlib import Path
+import site
+path=''
+path=site.getsitepackages()
+for i in path:
+    sys.path.append(i)
 
-pathOfPackages = '/usr/lib/python3/dist-packages'
-
-if Path(pathOfPackages).exists():
-    sys.path.append(pathOfPackages)
-else:
-    print("It can be an issue with import package miio.airpurifier")
-    print("Find where is located package miio.airpurifier and correct variable: pathOfPackages")
-    print("pathOfPackages:", pathOfPackages)
-
-pathOfPackages = '/usr/local/lib/python3.5/dist-packages'
-
-if Path(pathOfPackages).exists():
-    sys.path.append(pathOfPackages)
-    import miio.airpurifier
-else:
-    print("It can be an issue with import package miio.airpurifier")
-    print("Find where is located package miio.airpurifier and correct variable: pathOfPackages")
-    print("pathOfPackages:", pathOfPackages)
-    import miio.airpurifier
+import miio.airpurifier
 
 parser = argparse.ArgumentParser(description='Script which comunicate with AirPurfier.')
 parser.add_argument('IPaddress', help='IP address of AirPurfier' )
