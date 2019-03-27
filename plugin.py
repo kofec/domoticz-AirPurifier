@@ -32,8 +32,9 @@ import Domoticz
 import sys
 import datetime
 import socket
-import subprocess
 import site
+import threading
+import queue
 path=''
 path=site.getsitepackages()
 for i in path:
@@ -124,41 +125,6 @@ class ConnectionErrorException(Exception):
         self.expression = expression
         self.message = message
 
-# temporery class
-
-class AirStatus:
-    """Container for status reports from the air purifier."""
-
-    def __init__(self, AddressIP, token):
-        """
-        Response of script:
-
-               "<AirPurifierStatus power=on, aqi=10,average_aqi=8,temperature=21.9, humidity=36%," \
-               "mode=OperationMode.Silent,led=True,led_brightness=LedBrightness.Bright,buzzer=False, " \
-               "child_lock=False,favorite_level=10,filter_life_remaining=70, filter_hours_used=1044, " \
-               "use_time=3748042, purify_volume=38007, motor_speed=354> "
-        """
-
-        addressIP = str(AddressIP)
-        token = str(token)
-        data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
-        data = str(data.decode('utf-8'))
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug(data[:30] + " .... " + data[-30:])
-        data = data[19:-2]
-        data = data.replace(' ', '')
-        data = dict(item.split("=") for item in data.split(","))
-        self.aqi = data["aqi"]
-        self.average_aqi = data["average_aqi"]
-        self.power = data["power"]
-        self.humidity = int(data["humidity"][:-1])
-        self.temperature = data["temperature"]
-        self.mode = data["mode"]
-        self.favorite_level = data["favorite_level"]
-        self.motor_speed = data["motor_speed"]
-        for item in data.keys():
-            Domoticz.Debug(str(item) + " => " + str(data[item]))
-
 class BasePlugin:
     enabled = False
 
@@ -188,8 +154,27 @@ class BasePlugin:
 
 
         self.nextpoll = datetime.datetime.now()
+        self.messageQueue = queue.Queue()
+        self.messageThread = threading.Thread(name="QueueThread", target=BasePlugin.handleMessage, args=(self,))
         return
+    
+    def handleMessage(self):
+        try:
+            Domoticz.Debug("Entering message handler")
+            while True:
+                Message = self.messageQueue.get(block=True)
+                if Message is None:
+                    Domoticz.Debug("Exiting message handler")
+                    self.messageQueue.task_done()
+                    break
 
+                if (Message["Type"] == "Heartbeat"):
+                    self.onHeartbeatInternal(Message["fetch"])
+                elif (Message["Type"] == "Command"):
+                    self.onCommandInternal(Message["Unit"], Message["Command"], Message["Level"], Message["Hue"])
+                self.messageQueue.task_done()
+        except Exception as err:
+            Domoticz.Error("handleMessage: "+str(err))
 
     def onStart(self):
         Domoticz.Debug("onStart called")
@@ -200,9 +185,11 @@ class BasePlugin:
         else:
             Domoticz.Debugging(0)
 
+        self.myAir = miio.airpurifier.AirPurifier(Parameters["Address"], Parameters["Mode1"])
+        self.messageThread.start()
+
         Domoticz.Heartbeat(20)
         self.pollinterval = int(Parameters["Mode3"]) * 60
-
 
         self.variables = {
             self.UNIT_AIR_QUALITY_INDEX: {
@@ -297,6 +284,19 @@ class BasePlugin:
         Domoticz.Log("onStop called")
         Domoticz.Debugging(0)
 
+        # signal queue thread to exit
+        self.messageQueue.put(None)
+        Domoticz.Log("Clearing message queue...")
+        self.messageQueue.join()
+
+        # Wait until queue thread has exited
+        Domoticz.Log("Threads still active: "+str(threading.active_count())+", should be 1.")
+        while (threading.active_count() > 1):
+            for thread in threading.enumerate():
+                if (thread.name != threading.current_thread().name):
+                    Domoticz.Log("'"+thread.name+"' is still running, waiting otherwise Domoticz will abort on plugin exit.")
+            time.sleep(1.0)
+
     def onConnect(self, Status, Description):
         Domoticz.Log("onConnect called")
 
@@ -304,32 +304,30 @@ class BasePlugin:
         Domoticz.Log("onMessage called")
 
     def onCommand(self, Unit, Command, Level, Hue):
+        self.messageQueue.put({"Type": "Command", "Unit": Unit, "Command": Command, "Level": Level, "Hue": Hue})
+
+    def onCommandInternal(self, Unit, Command, Level, Hue):
         Domoticz.Log(
             "onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
 
         # Parameters["Address"] - IP address, Parameters["Mode1"] - token
-        commandToCall = './MyAir.py ' + Parameters["Address"] + ' ' + Parameters["Mode1"] + ' '
         if Unit == self.UNIT_POWER_CONTROL:
-            commandToCall += '--power=' + str(Command).upper()
+            if str(Command).upper() == "ON":
+                self.myAir.on()
+            elif str(Command).upper() == "OFF":
+                self.myAir.off()
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
-            commandToCall += '--mode=Idle'
+            self.myAir.set_mode(miio.airpurifier.OperationMode.Idle)
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
-            commandToCall += '--mode=Silent'
+            self.myAir.set_mode(miio.airpurifier.OperationMode.Silent)
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
-            commandToCall += '--mode=Favorite'
+            self.myAir.set_mode(miio.airpurifier.OperationMode.Favorite)
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
-            commandToCall += '--mode=Auto'
+            self.myAir.set_mode(miio.airpurifier.OperationMode.Auto)
         elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-            commandToCall += '--favoriteLevel=' + str(int(int(Level)/10))
+            self.myAir.set_favorite_level(str(int(int(Level)/10)))
         else:
             Domoticz.Log("onCommand called not found")
-
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug("Call command: " + commandToCall)
-        data = subprocess.check_output(['bash', '-c', commandToCall], cwd=Parameters["HomeFolder"])
-        data = str(data.decode('utf-8'))
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug(data)
         self.onHeartbeat(fetch=True)
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -409,13 +407,15 @@ class BasePlugin:
 
         # Set next pool time
         self.postponeNextPool(seconds=self.pollinterval)
-
+        self.messageQueue.put({"Type": "Heartbeat", "fetch": fetch})
+    
+    def onHeartbeatInternal(self, fetch=False):
         try:
             # check if another thread is not running
             # and time between last fetch has elapsed
             self.inProgress = True
 
-            res = self.sensor_measurement(Parameters["Address"], Parameters["Mode1"])
+            res = self.sensor_measurement()
 
             try:
                 self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
@@ -538,23 +538,9 @@ class BasePlugin:
                     Domoticz.Log(_("Update unit=%d; nValue=%d; sValue=%s") % (unit, nV, sV))
                     Devices[unit].Update(nValue=nV, sValue=sV)
 
-    def sensor_measurement(self, addressIP, token):
+    def sensor_measurement(self):
         """current sensor measurements"""
-        return AirStatus(addressIP, token)
-#        addressIP = str(addressIP)
-#        token = str(token)
-#        MyAir = miio.airpurifier.AirPurifier(addressIP, token)
-#        if Parameters["Mode6"] == 'Debug':
-#            Domoticz.Debug(str(MyAir.info()))
-#
-#        try:
-#            response_object = MyAir.status()
-#        except Exception as e:
-#            # reset nextpool datestamp to force running in next run
-#            self.postponeNextPool(seconds=0)
-#            raise ConnectionErrorException('', str(e))
-#
-#        return response_object
+        return self.myAir.status()
 
 
 global _plugin
