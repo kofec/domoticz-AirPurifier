@@ -307,28 +307,31 @@ class BasePlugin:
         self.messageQueue.put({"Type": "Command", "Unit": Unit, "Command": Command, "Level": Level, "Hue": Hue})
 
     def onCommandInternal(self, Unit, Command, Level, Hue):
-        Domoticz.Log(
-            "onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        try:
+            Domoticz.Log(
+                "onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
 
-        # Parameters["Address"] - IP address, Parameters["Mode1"] - token
-        if Unit == self.UNIT_POWER_CONTROL:
-            if str(Command).upper() == "ON":
-                self.myAir.on()
-            elif str(Command).upper() == "OFF":
-                self.myAir.off()
-        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
-            self.myAir.set_mode(miio.airpurifier.OperationMode.Idle)
-        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
-            self.myAir.set_mode(miio.airpurifier.OperationMode.Silent)
-        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
-            self.myAir.set_mode(miio.airpurifier.OperationMode.Favorite)
-        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
-            self.myAir.set_mode(miio.airpurifier.OperationMode.Auto)
-        elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-            self.myAir.set_favorite_level(str(int(int(Level)/10)))
-        else:
-            Domoticz.Log("onCommand called not found")
-        self.onHeartbeat(fetch=True)
+            # Parameters["Address"] - IP address, Parameters["Mode1"] - token
+            if Unit == self.UNIT_POWER_CONTROL:
+                if str(Command).upper() == "ON":
+                    self.myAir.on()
+                elif str(Command).upper() == "OFF":
+                    self.myAir.off()
+            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
+                self.myAir.set_mode(miio.airpurifier.OperationMode.Idle)
+            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
+                self.myAir.set_mode(miio.airpurifier.OperationMode.Silent)
+            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
+                self.myAir.set_mode(miio.airpurifier.OperationMode.Favorite)
+            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
+                self.myAir.set_mode(miio.airpurifier.OperationMode.Auto)
+            elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
+                self.myAir.set_favorite_level(str(int(int(Level)/10)))
+            else:
+                Domoticz.Log("onCommand called not found")
+            self.onHeartbeat(fetch=True)
+        except Exception as e:
+            Domoticz.Error(_("Unrecognized command error: %s") % str(e))
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
@@ -513,7 +516,7 @@ class BasePlugin:
 
             self.doUpdate()
         except Exception as e:
-            Domoticz.Error(_("Unrecognized error: %s") % str(e))
+            Domoticz.Error(_("Unrecognized heartbeat error: %s") % str(e))
         finally:
             self.inProgress = False
         if Parameters["Mode6"] == 'Debug':
