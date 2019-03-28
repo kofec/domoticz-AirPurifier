@@ -186,6 +186,7 @@ class BasePlugin:
             Domoticz.Debugging(0)
 
         self.myAir = miio.airpurifier.AirPurifier(Parameters["Address"], Parameters["Mode1"])
+        self.myAir._timeout = 1
         self.messageThread.start()
 
         Domoticz.Heartbeat(20)
