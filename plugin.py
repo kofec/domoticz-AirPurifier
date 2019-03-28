@@ -317,22 +317,26 @@ class BasePlugin:
             if Unit == self.UNIT_POWER_CONTROL:
                 if str(Command).upper() == "ON":
                     self.myAir.on()
+                    UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
                 elif str(Command).upper() == "OFF":
                     self.myAir.off()
+                    UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
             elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
                 self.myAir.set_mode(miio.airpurifier.OperationMode.Idle)
+                UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
             elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
                 self.myAir.set_mode(miio.airpurifier.OperationMode.Silent)
+                UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
             elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
                 self.myAir.set_mode(miio.airpurifier.OperationMode.Favorite)
+                UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
             elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
                 self.myAir.set_mode(miio.airpurifier.OperationMode.Auto)
+                UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
             elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
                 self.myAir.set_favorite_level(str(int(int(Level)/10)))
             else:
                 Domoticz.Log("onCommand called not found")
-            time.sleep(1.0)
-            self.onHeartbeat(fetch=True)
         except Exception as e:
             Domoticz.Error(_("Unrecognized command error: %s") % str(e))
 
