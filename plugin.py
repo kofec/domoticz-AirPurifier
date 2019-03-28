@@ -330,6 +330,7 @@ class BasePlugin:
                 self.myAir.set_favorite_level(str(int(int(Level)/10)))
             else:
                 Domoticz.Log("onCommand called not found")
+            time.sleep(1.0)
             self.onHeartbeat(fetch=True)
         except Exception as e:
             Domoticz.Error(_("Unrecognized command error: %s") % str(e))
