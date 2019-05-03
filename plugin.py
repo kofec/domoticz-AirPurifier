@@ -153,6 +153,8 @@ class BasePlugin:
         self.UNIT_MODE_CONTROL          = 11
         self.UNIT_MOTOR_SPEED_FAVORITE  = 12
 
+        self.UNIT_LED                   = 20
+
 
         self.nextpoll = datetime.datetime.now()
         self.messageQueue = queue.Queue()
@@ -280,6 +282,11 @@ class BasePlugin:
             else:
                 Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
 
+            if (self.UNIT_LED in Devices):
+                Domoticz.Log("Device UNIT_LED with id " + str(self.UNIT_LED) + " exist")
+            else:
+                Domoticz.Device(Name="Fan LED", Unit=self.UNIT_LED, TypeName="Switch", Image=7).Create()
+
         self.onHeartbeat(fetch=False)
 
     def onStop(self):
@@ -335,6 +342,10 @@ class BasePlugin:
                 UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
             elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
                 self.myAir.set_favorite_level(str(int(int(Level)/10)))
+            elif Unit == self.UNIT_LED:
+                enabled = str(Command).upper() == "ON"
+                self.myAir.set_led(enabled)
+                self.UpdateLedStatus(enabled)
             else:
                 Domoticz.Log("onCommand called not found")
         except Exception as e:
@@ -404,6 +415,12 @@ class BasePlugin:
         else:
             for k in self.variables.keys():
                 createSingleDevice(k)
+
+    def UpdateLedStatus(self, enabled):
+        if enabled:
+            UpdateDevice(self.UNIT_LED, 1, "Fan LED ON")
+        else:
+            UpdateDevice(self.UNIT_LED, 0, "Fan LED OFF")
 
 
     def onHeartbeat(self, fetch=False):
@@ -496,6 +513,7 @@ class BasePlugin:
             except KeyError:
                 pass  # No motor_speed value
 
+
             try:
                 if res.power == "on":
                     UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
@@ -503,6 +521,11 @@ class BasePlugin:
                     UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
             except KeyError:
                 pass  # No power value
+
+            try:
+                self.UpdateLedStatus(bool(res.led))
+            except KeyError:
+                pass  # No led value
 
             try:
                 if res.mode == "OperationMode.Idle":
