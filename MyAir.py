@@ -17,6 +17,7 @@ parser.add_argument('--mode', choices=['Auto', 'Favorite', 'Idle', 'Silent'], he
 parser.add_argument('--favoriteLevel', type=int, choices=range(0, 11), help='choose mode operation')
 parser.add_argument('--power', choices=['ON', 'OFF'], help='power ON/OFF')
 parser.add_argument('--debug', action='store_true', help='if define more output is printed')
+parser.add_argument('--led', choices=['ON', 'OFF'], help='turn led on/off')
 
 # MyAir.set_mode(miio.airpurifier.OperationMode.Silent)
 
@@ -41,6 +42,9 @@ if args.favoriteLevel:
 if args.favoriteLevel:
     MyAir.set_favorite_level(args.favoriteLevel)
 
+if args.led:
+    MyAir.set_led(args.led == 'ON')
+
 if args.power:
     if args.power == "ON":
         MyAir.on()
@@ -48,6 +52,3 @@ if args.power:
         MyAir.off()
 
 print(MyAir.status())
-
-
-
