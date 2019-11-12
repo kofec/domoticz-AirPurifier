@@ -152,7 +152,7 @@ class AirStatus:
         self.average_aqi = data["average_aqi"]
         self.power = data["power"]
         self.humidity = int(data["humidity"][:-1])
-        self.temperature = data["temperature"]
+        self.temperature = str(format(float(data["temperature"]), '.1f'))
         self.mode = data["mode"]
         self.favorite_level = data["favorite_level"]
         self.motor_speed = data["motor_speed"]
