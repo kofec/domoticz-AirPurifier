@@ -141,25 +141,6 @@ class AirStatus:
 
         addressIP = str(AddressIP)
         token = str(token)
-<<<<<<< HEAD
-        data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
-        data = str(data.decode('utf-8'))
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug(data[:30] + " .... " + data[-30:])
-        data = data[19:-2]
-        data = data.replace(' ', '')
-        data = dict(item.split("=") for item in data.split(","))
-        self.aqi = data["aqi"]
-        self.average_aqi = data["average_aqi"]
-        self.power = data["power"]
-        self.humidity = int(data["humidity"][:-1])
-        self.temperature = str(format(float(data["temperature"]), '.1f'))
-        self.mode = data["mode"]
-        self.favorite_level = data["favorite_level"]
-        self.motor_speed = data["motor_speed"]
-        for item in data.keys():
-            Domoticz.Debug(str(item) + " => " + str(data[item]))
-=======
         try:
             data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
             data = str(data.decode('utf-8'))
@@ -172,7 +153,7 @@ class AirStatus:
             self.average_aqi = data["average_aqi"]
             self.power = data["power"]
             self.humidity = int(data["humidity"][:-1])
-            self.temperature = data["temperature"]
+            self.temperature = str(format(float(data["temperature"]), '.1f'))
             self.mode = data["mode"]
             self.favorite_level = data["favorite_level"]
             self.motor_speed = data["motor_speed"]
@@ -180,7 +161,6 @@ class AirStatus:
                 Domoticz.Debug(str(item) + " => " + str(data[item]))
         except subprocess.CalledProcessError as e:
             Domoticz.Debug("Something fail:\n" + e.output.decode())
->>>>>>> e4d1b4b8fd90e58194b1d8315555b25af4348c3e
 
 class BasePlugin:
     enabled = False
