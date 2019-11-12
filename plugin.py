@@ -160,7 +160,7 @@ class AirStatus:
             for item in data.keys():
                 Domoticz.Debug(str(item) + " => " + str(data[item]))
         except subprocess.CalledProcessError as e:
-            Domoticz.Log("Something fail:\n" + e.output.decode())
+            Domoticz.Log("Something fail: " + e.output.decode())
 
 class BasePlugin:
     enabled = False
@@ -336,8 +336,8 @@ class BasePlugin:
                 Domoticz.Debug(data)
             self.onHeartbeat(fetch=True)
         except subprocess.CalledProcessError as e:
-            Domoticz.Log("Something fail:\n" + e.output.decode())
-            Domoticz.Log("When call:\n" + commandToCall)
+            Domoticz.Log("When call: " + commandToCall)
+            Domoticz.Log("Something fail: " + e.output.decode())
             self.onHeartbeat(fetch=False)
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
