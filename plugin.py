@@ -329,11 +329,16 @@ class BasePlugin:
 
         if Parameters["Mode6"] == 'Debug':
             Domoticz.Debug("Call command: " + commandToCall)
-        data = subprocess.check_output(['bash', '-c', commandToCall], cwd=Parameters["HomeFolder"])
-        data = str(data.decode('utf-8'))
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug(data)
-        self.onHeartbeat(fetch=True)
+        try:
+            data = subprocess.check_output(['bash', '-c', commandToCall], cwd=Parameters["HomeFolder"])
+            data = str(data.decode('utf-8'))
+            if Parameters["Mode6"] == 'Debug':
+                Domoticz.Debug(data)
+            self.onHeartbeat(fetch=True)
+        except subprocess.CalledProcessError as e:
+            Domoticz.Log("Something fail:\n" + e.output.decode())
+            Domoticz.Log("When call:\n" + commandToCall)
+            self.onHeartbeat(fetch=False)
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
