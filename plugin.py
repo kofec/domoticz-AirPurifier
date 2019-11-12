@@ -141,6 +141,7 @@ class AirStatus:
 
         addressIP = str(AddressIP)
         token = str(token)
+<<<<<<< HEAD
         data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
         data = str(data.decode('utf-8'))
         if Parameters["Mode6"] == 'Debug':
@@ -158,6 +159,28 @@ class AirStatus:
         self.motor_speed = data["motor_speed"]
         for item in data.keys():
             Domoticz.Debug(str(item) + " => " + str(data[item]))
+=======
+        try:
+            data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token], cwd=Parameters["HomeFolder"])
+            data = str(data.decode('utf-8'))
+            if Parameters["Mode6"] == 'Debug':
+                Domoticz.Debug(data[:30] + " .... " + data[-30:])
+            data = data[19:-2]
+            data = data.replace(' ', '')
+            data = dict(item.split("=") for item in data.split(","))
+            self.aqi = data["aqi"]
+            self.average_aqi = data["average_aqi"]
+            self.power = data["power"]
+            self.humidity = int(data["humidity"][:-1])
+            self.temperature = data["temperature"]
+            self.mode = data["mode"]
+            self.favorite_level = data["favorite_level"]
+            self.motor_speed = data["motor_speed"]
+            for item in data.keys():
+                Domoticz.Debug(str(item) + " => " + str(data[item]))
+        except subprocess.CalledProcessError as e:
+            Domoticz.Debug("Something fail:\n" + e.output.decode())
+>>>>>>> e4d1b4b8fd90e58194b1d8315555b25af4348c3e
 
 class BasePlugin:
     enabled = False
@@ -424,41 +447,41 @@ class BasePlugin:
 
             try:
                 self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(res.aqi)
+
+                #       AQI	Air Pollution - base on https://en.wikipedia.org/wiki/Air_quality_index
+                #       Level	Health Implications
+                #       0–50	    Excellent
+                #       51–100	Good
+                #       101–150	Lightly Polluted
+                #       151–200	Moderately Polluted
+                #       201–300	Heavily Polluted
+                #       300+	Severely Polluted
+
+                if int(res.aqi) < 50:
+                    pollutionLevel = 1  # green
+                    pollutionText = _("Great air quality")
+                elif int(res.aqi) < 100:
+                    pollutionLevel = 1  # green
+                    pollutionText = _("Good air quality")
+                elif int(res.aqi) < 150:
+                    pollutionLevel = 2  # yellow
+                    pollutionText = _("Average air quality")
+                elif int(res.aqi) < 200:
+                    pollutionLevel = 3  # orange
+                    pollutionText = _("Poor air quality")
+                elif int(res.aqi) < 300:
+                    pollutionLevel = 4  # red
+                    pollutionText = _("Bad air quality")
+                elif int(res.aqi) >= 300:
+                    pollutionLevel = 4  # red
+                    pollutionText = _("Really bad air quality")
+                else:
+                    pollutionLevel = 0
+
+                self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
+                self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
             except KeyError:
                 pass  # No airQualityIndex value
-
-            #       AQI	Air Pollution - base on https://en.wikipedia.org/wiki/Air_quality_index
-            #       Level	Health Implications
-            #       0–50	    Excellent
-            #       51–100	Good
-            #       101–150	Lightly Polluted
-            #       151–200	Moderately Polluted
-            #       201–300	Heavily Polluted
-            #       300+	Severely Polluted
-
-            if int(res.aqi) < 50:
-                pollutionLevel = 1  # green
-                pollutionText = _("Great air quality")
-            elif int(res.aqi) < 100:
-                pollutionLevel = 1  # green
-                pollutionText = _("Good air quality")
-            elif int(res.aqi) < 150:
-                pollutionLevel = 2  # yellow
-                pollutionText = _("Average air quality")
-            elif int(res.aqi) < 200:
-                pollutionLevel = 3  # orange
-                pollutionText = _("Poor air quality")
-            elif int(res.aqi) < 300:
-                pollutionLevel = 4  # red
-                pollutionText = _("Bad air quality")
-            elif int(res.aqi) >= 300:
-                pollutionLevel = 4  # red
-                pollutionText = _("Really bad air quality")
-            else:
-                pollutionLevel = 0
-
-            self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
-            self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
 
             try:
                 humidity = int(round(res.humidity))
