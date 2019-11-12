@@ -160,7 +160,7 @@ class AirStatus:
             for item in data.keys():
                 Domoticz.Debug(str(item) + " => " + str(data[item]))
         except subprocess.CalledProcessError as e:
-            Domoticz.Debug("Something fail:\n" + e.output.decode())
+            Domoticz.Log("Something fail:\n" + e.output.decode())
 
 class BasePlugin:
     enabled = False
