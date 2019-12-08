@@ -1,8 +1,10 @@
 # A Python plugin for Domoticz to access AirPurifier 2
 #
 # Author: kofec
+# Contributor: Georgi Kolev
 #
 # TODO: Update text sensors only when changed
+#
 #
 #
 # v0.1.0 - initial version,
@@ -12,6 +14,8 @@
 # filter_hours_used=717, use_time=2581642, motor_speed=352>
 
 # v0.1.1 - Add initial version of switches, update to nie version of python-miio
+#
+# v0.1.2 - Integrate
 #
 """
 <plugin key="AirPurifier" name="AirPurifier" author="kofec" version="0.1.1" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
@@ -155,12 +159,15 @@ class BasePlugin:
 
         self.UNIT_LED                   = 20
 
+        self.FILTER_WORK_HOURS          = 21
+        self.FILTER_LIFE_REMAINING      = 22
+
 
         self.nextpoll = datetime.datetime.now()
         self.messageQueue = queue.Queue()
         self.messageThread = threading.Thread(name="QueueThread", target=BasePlugin.handleMessage, args=(self,))
         return
-    
+
     def handleMessage(self):
         try:
             Domoticz.Debug("Entering message handler")
@@ -196,6 +203,24 @@ class BasePlugin:
         self.pollinterval = int(Parameters["Mode3"]) * 60
 
         self.variables = {
+            self.FILTER_LIFE_REMAINING: {
+                "Name":     _("Filter life remaining"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "%"},
+                "Image":    7,
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
+            self.FILTER_WORK_HOURS: {
+                "Name":     _("Filter work hours"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "h"},
+                "Image":    7,
+                "Used":     0,
+                "nValue":   0,
+                "sValue":   0,
+            },
             self.UNIT_AIR_QUALITY_INDEX: {
                 "Name":     _("Air Quality Index"),
                 "TypeName": "Custom",
@@ -286,6 +311,11 @@ class BasePlugin:
                 Domoticz.Log("Device UNIT_LED with id " + str(self.UNIT_LED) + " exist")
             else:
                 Domoticz.Device(Name="Fan LED", Unit=self.UNIT_LED, TypeName="Switch", Image=7).Create()
+
+            if (self.FILTER_WORK_HOURS in Devices):
+                Domoticz.Log("Device UNIT_FILTER_WORK_HOURS with id " + str(self.FILTER_WORK_HOURS) + " exist")
+            else:
+                Domoticz.Device(Name="Fan Favorite level", Unit=self.FILTER_WORKHOURS, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
 
         self.onHeartbeat(fetch=False)
 
@@ -435,7 +465,7 @@ class BasePlugin:
         # Set next pool time
         self.postponeNextPool(seconds=self.pollinterval)
         self.messageQueue.put({"Type": "Heartbeat", "fetch": fetch})
-    
+
     def onHeartbeatInternal(self, fetch=False):
         try:
             # check if another thread is not running
@@ -513,6 +543,17 @@ class BasePlugin:
             except KeyError:
                 pass  # No motor_speed value
 
+            try:
+                self.variables[self.FILTER_WORK_HOURS]['nValue'] = res.filter_hours_used
+                self.variables[self.FILTER_WORK_HOURS]['sValue'] = str(res.filter_hours_used)
+            except KeyError:
+                pass  # No filter_hours_used
+
+            try:
+                self.variables[self.FILTER_LIFE_REMAINING]['nValue'] = res.filter_life_remaining
+                self.variables[self.FILTER_LIFE_REMAINING]['sValue'] = str(res.filter_life_remaining)
+            except KeyError:
+                pass  # No filter_life_remaining
 
             try:
                 if res.power == "on":
@@ -633,3 +674,4 @@ def UpdateDevice(Unit, nValue, sValue):
             Devices[Unit].Update(nValue=nValue, sValue=str(sValue))
             Domoticz.Log("Update " + str(nValue) + ":'" + str(sValue) + "' (" + Devices[Unit].Name + ")")
     return
+
