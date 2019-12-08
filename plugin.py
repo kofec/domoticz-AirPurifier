@@ -1,10 +1,12 @@
 # A Python plugin for Domoticz to access AirPurifier 2
 #
-# Author: kofec
-# Contributor: Georgi Kolev
+# Authors:
+#  - kofec
+#  - Carck
+#  - l4m3rx
+#
 #
 # TODO: Update text sensors only when changed
-#
 #
 #
 # v0.1.0 - initial version,
@@ -12,10 +14,16 @@
 # aqi=10 temperature=22.9, humidity=35%, mode=OperationMode.Silent, led=True, led_brightness=LedBrightness.Bright,
 # buzzer=False, child_lock=False, brightness=None, favorite_level=10, filter_life_remaining=79,
 # filter_hours_used=717, use_time=2581642, motor_speed=352>
-
+#
 # v0.1.1 - Add initial version of switches, update to nie version of python-miio
 #
-# v0.1.2 - Integrate
+# v0.2.0
+#   - Switch to multiple thread model
+#   - Change command timeout
+#   - Introduce small sleep before update after command
+#   - Update device status directly after command
+#   - Expose LED status and switch to control the LED from domoticz
+#   - Expose Filter statistics to domoticz
 #
 """
 <plugin key="AirPurifier" name="AirPurifier" author="kofec" version="0.1.1" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
@@ -135,7 +143,7 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.1.1"
+        self.version = "0.2.0"
 
         self.EXCEPTIONS = {
             "SENSOR_NOT_FOUND":     1,
