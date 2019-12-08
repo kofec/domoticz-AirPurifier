@@ -323,7 +323,7 @@ class BasePlugin:
             if (self.FILTER_WORK_HOURS in Devices):
                 Domoticz.Log("Device UNIT_FILTER_WORK_HOURS with id " + str(self.FILTER_WORK_HOURS) + " exist")
             else:
-                Domoticz.Device(Name="Fan Favorite level", Unit=self.FILTER_WORKHOURS, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
+                Domoticz.Device(Name="Fan Favorite level", Unit=self.FILTER_WORK_HOURS, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
 
         self.onHeartbeat(fetch=False)
 
