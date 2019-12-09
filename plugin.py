@@ -24,6 +24,8 @@
 #   - Update device status directly after command
 #   - Expose LED status and switch to control the LED from domoticz
 #   - Expose Filter statistics to domoticz
+# v0.2.1
+#   - Expose illuminance to domoticz
 #
 """
 <plugin key="AirPurifier" name="AirPurifier" author="kofec" version="0.1.1" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
@@ -143,7 +145,7 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.2.0"
+        self.version = "0.2.1"
 
         self.EXCEPTIONS = {
             "SENSOR_NOT_FOUND":     1,
@@ -169,6 +171,8 @@ class BasePlugin:
 
         self.FILTER_WORK_HOURS          = 21
         self.FILTER_LIFE_REMAINING      = 22
+
+        self.UNIT_ILLUMINANCE_SENSOR    = 23
 
 
         self.nextpoll = datetime.datetime.now()
@@ -211,6 +215,15 @@ class BasePlugin:
         self.pollinterval = int(Parameters["Mode3"]) * 60
 
         self.variables = {
+            self.UNIT_ILLUMINANCE_SENSOR: {
+                "Name":     _("Illuminance sensor"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "lux"},
+                "Image":    7,
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
             self.FILTER_LIFE_REMAINING: {
                 "Name":     _("Filter life remaining"),
                 "TypeName": "Custom",
@@ -320,12 +333,7 @@ class BasePlugin:
             else:
                 Domoticz.Device(Name="Fan LED", Unit=self.UNIT_LED, TypeName="Switch", Image=7).Create()
 
-            if (self.FILTER_WORK_HOURS in Devices):
-                Domoticz.Log("Device UNIT_FILTER_WORK_HOURS with id " + str(self.FILTER_WORK_HOURS) + " exist")
-            else:
-                Domoticz.Device(Name="Fan Favorite level", Unit=self.FILTER_WORK_HOURS, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
-
-        self.onHeartbeat(fetch=False)
+            self.onHeartbeat(fetch=False)
 
     def onStop(self):
         Domoticz.Log("onStop called")
@@ -562,6 +570,12 @@ class BasePlugin:
                 self.variables[self.FILTER_LIFE_REMAINING]['sValue'] = str(res.filter_life_remaining)
             except KeyError:
                 pass  # No filter_life_remaining
+
+            try:
+                self.variables[self.UNIT_ILLUMINANCE_SENSOR]['nValue'] = res.illuminance
+                self.variables[self.UNIT_ILLUMINANCE_SENSOR]['sValue'] = str(res.illuminance)
+            except KeyError:
+                pass  # No illuminance
 
             try:
                 if res.power == "on":
