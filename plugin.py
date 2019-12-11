@@ -26,9 +26,12 @@
 #   - Expose Filter statistics to domoticz
 # v0.2.1
 #   - Expose illuminance to domoticz
+# v0.2.2
+#   - Update old version definition in xml
+#   - Fix set_favorite_level. python-miio library expects int not str.
 #
 """
-<plugin key="AirPurifier" name="AirPurifier" author="kofec" version="0.1.1" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
+<plugin key="AirPurifier" name="AirPurifier" author="kofec" version="0.2.2" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
     <params>
 		<param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
 		<param field="Mode1" label="AirPurifier Token" default="" width="400px" required="true"  />
@@ -145,7 +148,7 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.2.1"
+        self.version = "0.2.2"
 
         self.EXCEPTIONS = {
             "SENSOR_NOT_FOUND":     1,
@@ -387,7 +390,7 @@ class BasePlugin:
                 self.myAir.set_mode(miio.airpurifier.OperationMode.Auto)
                 UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
             elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-                self.myAir.set_favorite_level(str(int(int(Level)/10)))
+                self.myAir.set_favorite_level(int(int(Level)/10))
             elif Unit == self.UNIT_LED:
                 enabled = str(Command).upper() == "ON"
                 self.myAir.set_led(enabled)
