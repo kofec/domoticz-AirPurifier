@@ -553,7 +553,7 @@ class BasePlugin:
                 pass  # No humidity value
 
             try:
-                self.variables[self.UNIT_TEMPERATURE]['sValue'] = res.temperature
+                self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
             except KeyError:
                 pass  # No temperature value
 
@@ -699,4 +699,3 @@ def UpdateDevice(Unit, nValue, sValue):
             Devices[Unit].Update(nValue=nValue, sValue=str(sValue))
             Domoticz.Log("Update " + str(nValue) + ":'" + str(sValue) + "' (" + Devices[Unit].Name + ")")
     return
-
