@@ -259,40 +259,44 @@ class BasePlugin:
             },
         }
 
+        create_power_sw = True
+        create_source_sw = True
+        create_fan_sw = True
+
         #create switches
-        if (len(Devices) == 0):
-            Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
-            Options = {"LevelActions": "||||",
-                       "LevelNames": "Auto|Silent|Favorite|Idle",
-                       "LevelOffHidden": "true",
-                       "SelectorStyle": "0"
-                      }
-            Domoticz.Device(Name="Source", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                            Image=7,
-                            Options=Options).Create()
-            Domoticz.Log("Devices created.")
-            Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73,
-                            Switchtype=7, Image=7).Create()
-        else:
-            if (self.UNIT_POWER_CONTROL in Devices ):
+        if (len(Devices) > 0):
+            if ( self.UNIT_POWER_CONTROL in Devices ):
                 Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
-            else:
-                Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
-            if (self.UNIT_MODE_CONTROL in Devices ):
+                create_power_sw = False
+
+            if ( self.UNIT_MODE_CONTROL in Devices ):
                 Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_MODE_CONTROL) + " exist")
-            else:
-                Options = {"LevelActions": "||||",
-                           "LevelNames": "Idle|Silent|Favorite|Auto",
-                           "LevelOffHidden": "false",
-                           "SelectorStyle": "0"
-                           }
-                Domoticz.Device(Name="Mode", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                                Image=7,
-                                Options=Options).Create()
-            if (self.UNIT_MOTOR_SPEED_FAVORITE in Devices ):
+                create_source_sw = False
+
+            if ( self.UNIT_MOTOR_SPEED_FAVORITE in Devices ):
                 Domoticz.Log("Device UNIT_MOTOR_SPEED_FAVORITE with id " + str(self.UNIT_MOTOR_SPEED_FAVORITE) + " exist")
-            else:
-                Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
+                create_fan_sw = False
+
+        if create_power_sw:
+            Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
+            Domoticz.Log("Power device created.")
+
+        if create_source_sw:
+            ModeOptions = {"LevelActions": "||||",
+                "LevelNames": "Off|Auto|Silent|Favorite|Idle",
+                "LevelOffHidden": "true",
+                "SelectorStyle": "0"
+                }
+
+            Domoticz.Device(Name="Source", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
+                Image=7,
+                Options=ModeOptions).Create()
+            Domoticz.Log("Source device created.")
+
+        if create_fan_sw:
+            Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73,
+                Switchtype=7, Image=7).Create()
+            Domoticz.Log("Favorite device created.")
 
         self.onHeartbeat(fetch=False)
 
