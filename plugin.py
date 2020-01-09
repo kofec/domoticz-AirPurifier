@@ -319,6 +319,7 @@ class BasePlugin:
         if Unit == self.UNIT_POWER_CONTROL:
             commandToCall += '--power=' + str(Command).upper()
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
+            ## On my device there is no mode Idle
             commandToCall += '--mode=Idle'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
             commandToCall += '--mode=Silent'
