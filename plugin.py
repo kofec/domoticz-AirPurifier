@@ -230,14 +230,14 @@ class BasePlugin:
                 "Name":     _("Air pollution Level"),
                 "TypeName": "Alert",
                 "Image":    7,
-                "Used":     0,
+                "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
             },
             self.UNIT_TEMPERATURE: {
                 "Name":     _("Temperature"),
                 "TypeName": "Temperature",
-                "Used":     0,
+                "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
             },
@@ -278,7 +278,11 @@ class BasePlugin:
                 create_fan_sw = False
 
         if create_power_sw:
-            Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
+            Domoticz.Device(Name="Power",
+                            Unit=self.UNIT_POWER_CONTROL,
+                            TypeName="Switch",
+                            Image=7,
+                            Used=1).Create()
             Domoticz.Log("Power device created.")
 
         if create_source_sw:
@@ -288,9 +292,13 @@ class BasePlugin:
                 "SelectorStyle": "0"
                 }
 
-            Domoticz.Device(Name="Source", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                Image=7,
-                Options=ModeOptions).Create()
+            Domoticz.Device(Name="Source",
+                            Unit=self.UNIT_MODE_CONTROL,
+                            TypeName="Selector Switch",
+                            Switchtype=18,
+                            Image=7,
+                            Options=ModeOptions,
+                            Used=1).Create()
             Domoticz.Log("Source device created.")
 
         if create_fan_sw:
