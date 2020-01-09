@@ -1,10 +1,6 @@
 # A Python plugin for Domoticz to access AirPurifier 2
 #
-# Authors:
-#  - kofec
-#  - Carck
-#  - l4m3rx
-#  - pawcio
+# Author: pawcio based on kofec solution
 #
 # TODO: Update text sensors only when changed
 #
@@ -21,21 +17,10 @@
 #
 # v0.1.3 - Improved temperature parser
 #
-# v0.2.0
-#   - Switch to multiple thread model
-#   - Change command timeout
-#   - Introduce small sleep before update after command
-#   - Update device status directly after command
-#   - Expose LED status and switch to control the LED from domoticz
-#   - Expose Filter statistics to domoticz
-# v0.2.1
-#   - Expose illuminance to domoticz
-# v0.2.2
-#   - Update old version definition in xml
-#   - Fix set_favorite_level. python-miio library expects int not str.
+# v0.1.4 - OnStop fix
 #
 """
-<plugin key="AirPurifier" name="AirPurifier" author="ManyAuthors" version="0.2.2" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
+<plugin key="AirPurifier" name="AirPurifier" author="kofec/pawcio" version="0.1.4" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/pawcio50501/domoticz-AirPurifier">
     <params>
 		<param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
 		<param field="Mode1" label="AirPurifier Token" default="" width="400px" required="true"  />
@@ -53,15 +38,16 @@ import Domoticz
 import sys
 import datetime
 import socket
+import subprocess
+
 import site
-import time
 path=''
 path=site.getsitepackages()
 for i in path:
     sys.path.append(i)
-
-import glob
-site_path = '/usr/lib/python3.9/site-packages'
+    
+import glob    
+site_path = '/usr/local/lib/python3.6/site-packages'
 sys.path.append(site_path)
 eggs = [f for f in glob.glob(site_path + "**/*.egg", recursive=False)]
 for f in eggs:
@@ -137,6 +123,7 @@ L10N = {
     'en': { }
 }
 
+
 def _(key):
     try:
         return L10N[Settings["Language"]][key]
@@ -161,10 +148,10 @@ class ConnectionErrorException(Exception):
 class BasePlugin:
     enabled = False
     MyAir = None
-
+    
     def __init__(self):
         # Consts
-        self.version = "0.2.3"
+        self.version = "0.1.2"
 
         self.EXCEPTIONS = {
             "SENSOR_NOT_FOUND":     1,
@@ -172,7 +159,6 @@ class BasePlugin:
         }
 
         self.debug = False
-        self.inProgress = False
 
         # Do not change below UNIT constants!
         self.UNIT_AIR_QUALITY_INDEX     = 1
@@ -188,15 +174,10 @@ class BasePlugin:
         self.UNIT_CHILD_LOCK            = 13
         self.UNIT_BEEP                  = 15
 
-        self.UNIT_LED                   = 20
-        self.FILTER_WORK_HOURS          = 21
-        self.FILTER_LIFE_REMAINING      = 22
-        self.UNIT_ILLUMINANCE_SENSOR    = 23
-
-
         self.nextpoll = datetime.datetime.now()
         self.messageQueue = queue.Queue()
         self.messageThread = threading.Thread(name="QueueThreadPurifier", target=BasePlugin.handleMessage, args=(self,))
+
         return
 
     def connectIfNeeded(self):
@@ -208,7 +189,7 @@ class BasePlugin:
             except miio.airpurifier.AirPurifierException as e:
                 Domoticz.Error("connectIfNeeded: " + str(e))
                 self.MyAir = None
-
+            
     def handleMessage(self):
         Domoticz.Debug("Entering message handler")
         while True:
@@ -218,22 +199,26 @@ class BasePlugin:
                     Domoticz.Debug("Exiting message handler")
                     self.messageQueue.task_done()
                     break
-
+                    
                 self.connectIfNeeded()
-
+                    
                 if (Message["Type"] == "onHeartbeat"):
                     self.onHeartbeatInternal(Message["Fetch"])
                 elif (Message["Type"] == "onCommand"):
                     self.onCommandInternal(Message["Mthd"], *Message["Arg"])
-
+                    
                 self.messageQueue.task_done()
-
+                
             except Exception as err:
                 Domoticz.Error("handleMessage: "+str(err))
                 self.MyAir = None
-                with self.messageQueue.mutex:
-                   	self.messageQueue.queue.clear()
-
+                while not self.messageQueue.empty():
+                    try:
+                        self.messageQueue.get(False)
+                    except Empty:
+                        continue
+                    self.messageQueue.task_done()
+                    
     def onStart(self):
         #Domoticz.Log("path: " + str(sys.path))
         Domoticz.Debug("onStart called")
@@ -244,34 +229,11 @@ class BasePlugin:
         else:
             Domoticz.Debugging(0)
 
-        self.connectIfNeeded()
-        self.MyAir._timeout = 1
-        self.messageThread.start()
-
         Domoticz.Heartbeat(20)
         self.pollinterval = int(Parameters["Mode3"]) * 60
 
-        res = self.MyAir.status()
-        Domoticz.Log(str(res))
+
         self.variables = {
-            self.FILTER_LIFE_REMAINING: {
-                "Name":     _("Filter life remaining"),
-                "TypeName": "Custom",
-                "Options":  {"Custom": "1;%s" % "%"},
-                "Image":    7,
-                "Used":     1,
-                "nValue":   0,
-                "sValue":   None,
-            },
-            self.FILTER_WORK_HOURS: {
-                "Name":     _("Filter work hours"),
-                "TypeName": "Custom",
-                "Options":  {"Custom": "1;%s" % "h"},
-                "Image":    7,
-                "Used":     0,
-                "nValue":   0,
-                "sValue":   0,
-            },
             self.UNIT_AIR_QUALITY_INDEX: {
                 "Name":     _("Air Quality Index"),
                 "TypeName": "Custom",
@@ -336,23 +298,8 @@ class BasePlugin:
                 "Used":     0,
                 "nValue":   0,
                 "sValue":   None,
-            },
+            },       
         }
-        if res.illuminance is not None:
-            self.variables.update({self.UNIT_ILLUMINANCE_SENSOR: {
-                "Name":     _("Illuminance sensor"),
-                "TypeName": "Custom",
-                "Options":  {"Custom": "1;%s" % "lux"},
-                "Image":    7,
-                "Used":     1,
-                "nValue":   0,
-                "sValue":   None,
-            }})
-            if (self.UNIT_ILLUMINANCE_SENSOR in Devices):
-                Domoticz.Log("Device UNIT_ILLUMINANCE_SENSOR with id " + str(self.UNIT_ILLUMINANCE_SENSOR) + " exist")
-            else:
-                Domoticz.Device(Name="Illuminance sensor", Unit=self.UNIT_ILLUMINANCE_SENSOR, Type=244, Subtype=73,
-                                Switchtype=7, Image=7).Create()
 
         # Create switches - if not exist
         if self.UNIT_POWER_CONTROL in Devices:
@@ -381,7 +328,7 @@ class BasePlugin:
             Domoticz.Device(Name="Mode", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
                             Image=7,
                             Options=Options).Create()
-
+        
         if self.UNIT_MOTOR_SPEED_FAVORITE in Devices:
             Domoticz.Log("Device UNIT_MOTOR_SPEED_FAVORITE with id " + str(self.UNIT_MOTOR_SPEED_FAVORITE) + " exist")
         else:
@@ -393,24 +340,25 @@ class BasePlugin:
             Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, TypeName="Selector Switch", Switchtype=18,
                             Image=7,
                             Options=Options).Create()
-        if (self.UNIT_LED in Devices):
-            Domoticz.Log("Device UNIT_LED with id " + str(self.UNIT_LED) + " exist")
-        else:
-            Domoticz.Device(Name="Fan LED", Unit=self.UNIT_LED, TypeName="Switch", Image=7).Create()
-
+        
+        self.messageThread.start()
         self.onHeartbeat(fetch=False)
 
     def onStop(self):
         Domoticz.Log("onStop called")
-
-        with self.messageQueue.mutex:
-            self.messageQueue.queue.clear()
-
+        
+        while not self.messageQueue.empty():
+            try:
+                self.messageQueue.get(False)
+            except Empty:
+                continue
+            self.messageQueue.task_done()
+    
         # signal queue thread to exit
         self.messageQueue.put(None)
         Domoticz.Log("Clearing message queue ...")
         self.messageQueue.join()
-
+        
         # Wait until queue thread has exited
         Domoticz.Log("Threads still active: "+str(threading.active_count())+", should be 1.")
         while (threading.active_count() > 1):
@@ -418,7 +366,7 @@ class BasePlugin:
                 if (thread.name != threading.current_thread().name):
                     Domoticz.Log("'"+thread.name+"' is still running, waiting otherwise Domoticz will abort on plugin exit.")
             time.sleep(1.0)
-
+            
         Domoticz.Debugging(0)
 
     def onConnect(self, Status, Description):
@@ -430,22 +378,20 @@ class BasePlugin:
     def onCommandInternal(self, func, *arg):
         try:
             stat = func(*arg)
+                
             Domoticz.Log(str(stat))
-
+            
             self.onHeartbeat(fetch=True)
         except miio.airpurifier.AirPurifierException as e:
             Domoticz.Log("Something fail: " + e.output.decode())
             self.onHeartbeat(fetch=False)
-        except Exception as e:
-            Domoticz.Error(_("Unrecognized command error: %s") % str(e))
-
+    
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
-#        self.messageQueue.put({"Type": "Command", "Unit": Unit, "Command": Command, "Level": Level, "Hue": Hue})
 
         mthd = None
         arg = []
-
+        
         if Unit == self.UNIT_POWER_CONTROL:
             mthd = self.MyAir.on if str(Command).upper() == "ON" else self.MyAir.off
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
@@ -459,7 +405,7 @@ class BasePlugin:
             arg = [OperationMode.Favorite]
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
             mthd = self.MyAir.set_mode
-            arg = [OperationMode.Auto]
+            arg = [OperationMode.Auto]       
         elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
             mthd = self.MyAir.set_favorite_level
             arg = [int(int(Level)/10 + 1)]
@@ -469,18 +415,14 @@ class BasePlugin:
         elif Unit == self.UNIT_BEEP:
             mthd = self.MyAir.set_volume
             arg = [50 if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else 0]
-        elif Unit == self.UNIT_LED:
-            enabled = str(Command).upper() == "ON"
-            mthd = self.myAir.set_led(enabled)
-            self.UpdateLedStatus(enabled)
         else:
             Domoticz.Log("onCommand called not found")
 
         if None == mthd:
             return
-
+            
         Domoticz.Log(str({"Type":"onCommand", "Mthd":mthd, "Arg":arg}))
-        self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})
+        self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})            
 
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -548,17 +490,6 @@ class BasePlugin:
             for k in self.variables.keys():
                 createSingleDevice(k)
 
-    def UpdateLedStatus(self, enabled):
-        if enabled:
-            UpdateDevice(self.UNIT_LED, 1, "Fan LED ON")
-        else:
-            UpdateDevice(self.UNIT_LED, 0, "Fan LED OFF")
-
-    def onHeartbeat(self, fetch=False):
-        Domoticz.Debug("onHeartbeat called")
-        self.messageQueue.put({"Type": "onHeartbeat", "Fetch": fetch})
-        return True
-
     def onHeartbeatInternal(self, fetch=False):
         now = datetime.datetime.now()
         if fetch == False:
@@ -572,55 +503,17 @@ class BasePlugin:
         try:
             res = self.MyAir.status()
             Domoticz.Log(str(res))
-            # check if another thread is not running
-            # and time between last fetch has elapsed
-            self.inProgress = True
+            
+            self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
+            self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(res.aqi)
+            self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
+            self.variables[self.UNIT_MOTOR_SPEED]['sValue'] = str(res.motor_speed)
 
-            try:
-                if str(res.mode) == "OperationMode.Idle":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
-                elif str(res.mode) == "OperationMode.Silent":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
-                elif str(res.mode) == "OperationMode.Favorite":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
-                elif str(res.mode) == "OperationMode.Auto":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
-                else:
-                    Domoticz.Log("Wrong state for UNIT_MODE_CONTROL: " + str(res.mode))
-            except KeyError:
-                Domoticz.Log("Cannot update: UNIT_MODE_CONTROL") 
-                pass  # No mode value
-
-            UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(int(res.favorite_level)-1)*10))
-
-            try:
-                self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
-            except KeyError:
-                pass  # No airQualityIndex value
-
-            try:
-                self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(res.aqi)
-            except KeyError:
-                pass  # No airQualityIndex value
-
-            try:
-                self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
-            except KeyError:
-                pass  # No temperature value
-
-            try:
-                self.variables[self.UNIT_MOTOR_SPEED]['sValue'] = str(res.motor_speed)
-            except KeyError:
-                pass  # No motor_speed value
-
-            try:
-                if str(res.power) == "on":
-                    UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
-                elif str(res.power) == "off":
-                    UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
-            except KeyError:
-                pass  # No power value
-
+            if res.power == "on":
+                UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
+            elif res.power == "off":
+                UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
+                
             #       AQI	Air Pollution - base on https://en.wikipedia.org/wiki/Air_quality_index
             #       Level	Health Implications
             #       0–50	    Excellent
@@ -630,103 +523,84 @@ class BasePlugin:
             #       201–300	Heavily Polluted
             #       300+	Severely Polluted
 
-            # sometimes response has 10 times lower value - uncomment below
-            # res.aqi = int(res.aqi) * 10
-            if int(res.aqi) < 50:
+            if int(res.aqi) < 5:
                 pollutionLevel = 1  # green
                 pollutionText = _("Great air quality")
-            elif int(res.aqi) < 100:
+            elif int(res.aqi) < 10:
                 pollutionLevel = 1  # green
                 pollutionText = _("Good air quality")
-            elif int(res.aqi) < 150:
+            elif int(res.aqi) < 20:
                 pollutionLevel = 2  # yellow
                 pollutionText = _("Average air quality")
-            elif int(res.aqi) < 200:
+            elif int(res.aqi) < 30:
                 pollutionLevel = 3  # orange
                 pollutionText = _("Poor air quality")
-            elif int(res.aqi) < 300:
-                pollutionLevel = 4  # red
-                pollutionText = _("Bad air quality")
-            elif int(res.aqi) >= 300:
+            elif int(res.aqi) >= 30:
                 pollutionLevel = 4  # red
                 pollutionText = _("Really bad air quality")
             else:
                 pollutionLevel = 0
 
-
             self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
             self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
 
-            try:
-                humidity = int(round(res.humidity))
-                if humidity < 40:
-                    humidity_status = 2  # dry humidity
-                elif 40 <= humidity <= 60:
-                    humidity_status = 0  # normal humidity
-                elif 40 < humidity <= 70:
-                    humidity_status = 1  # comfortable humidity
-                else:
-                    humidity_status = 3  # wet humidity
+            #humidity
+            humidity = int(round(res.humidity))
+            if humidity < 40:
+                humidity_status = 2  # dry humidity
+            elif 40 <= humidity <= 60:
+                humidity_status = 0  # normal humidity
+            elif 40 < humidity <= 70:
+                humidity_status = 1  # comfortable humidity
+            else:
+                humidity_status = 3  # wet humidity
 
-                self.variables[self.UNIT_HUMIDITY]['nValue'] = humidity
-                self.variables[self.UNIT_HUMIDITY]['sValue'] = str(humidity_status)
+            self.variables[self.UNIT_HUMIDITY]['nValue'] = humidity
+            self.variables[self.UNIT_HUMIDITY]['sValue'] = str(humidity_status)
 
-            except KeyError:
-                pass  # No humidity value
+            #operation mode
+            if res.mode == OperationMode.Idle:
+                UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
+            elif res.mode == OperationMode.Silent:
+                UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
+            elif res.mode == OperationMode.Favorite:
+                UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
+            elif res.mode == OperationMode.Auto:
+                UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
 
-            try:
-                self.variables[self.FILTER_WORK_HOURS]['nValue'] = res.filter_hours_used
-                self.variables[self.FILTER_WORK_HOURS]['sValue'] = str(res.filter_hours_used)
-            except KeyError:
-                pass  # No filter_hours_used
-
-            try:
-                self.variables[self.FILTER_LIFE_REMAINING]['nValue'] = res.filter_life_remaining
-                self.variables[self.FILTER_LIFE_REMAINING]['sValue'] = str(res.filter_life_remaining)
-            except KeyError:
-                pass  # No filter_life_remaining
-
-            try:
-                self.variables[self.UNIT_ILLUMINANCE_SENSOR]['nValue'] = res.illuminance
-                self.variables[self.UNIT_ILLUMINANCE_SENSOR]['sValue'] = str(res.illuminance)
-            except KeyError:
-                pass  # No illuminance
-
-            self.doUpdate()
-
-            try:
-                self.UpdateLedStatus(bool(res.led))
-            except KeyError:
-                pass  # No led value
-	   
+            UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(int(res.favorite_level)-1)*10))
+            
             # child lock
             if res.child_lock:
                 UpdateDevice(self.UNIT_CHILD_LOCK, 1, "ChildLock ON")
             else:
                 UpdateDevice(self.UNIT_CHILD_LOCK, 0, "ChildLock OFF")
-
+            
              # beep
             if res.volume is not None and res.volume > 0:
                 UpdateDevice(self.UNIT_BEEP, 1, "Beep ON")
             else:
                 UpdateDevice(self.UNIT_BEEP, 0, "Beep OFF")
-
+            
+            self.doUpdate()
+            
         except miio.airpurifier.AirPurifierException as e:
             Domoticz.Error("onHeartbeatInternal: " + str(e))
             self.MyAir = None
             return
-        except Exception as e:
-            Domoticz.Error(_("Unrecognized heartbeat error: %s") % str(e))
-        finally:
-            self.inProgress = False
-        if Parameters["Mode6"] == 'Debug':
-            Domoticz.Debug("onHeartbeat finished")
+
+
+
+    def onHeartbeat(self, fetch=False):
+        Domoticz.Debug("onHeartbeat called")
+        self.messageQueue.put({"Type":"onHeartbeat", "Fetch":fetch})
+
+        return True
 
 
     def doUpdate(self):
         Domoticz.Log(_("Starting device update"))
         for unit in self.variables:
-            Domoticz.Debug(str(self.variables[unit]))
             nV = self.variables[unit]['nValue']
             sV = self.variables[unit]['sValue']
 
