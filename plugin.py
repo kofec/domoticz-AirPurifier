@@ -266,7 +266,7 @@ class BasePlugin:
         #create switches
         if (len(Devices) > 0):
             if ( self.UNIT_POWER_CONTROL in Devices ):
-                Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
+                Domoticz.Log("Device UNIT_POWER_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
                 create_power_sw = False
 
             if ( self.UNIT_MODE_CONTROL in Devices ):
@@ -283,7 +283,7 @@ class BasePlugin:
 
         if create_source_sw:
             ModeOptions = {"LevelActions": "||||",
-                "LevelNames": "Off|Auto|Silent|Favorite|Idle",
+                "LevelNames": "Off|Idle|Silent|Favorite|Auto",
                 "LevelOffHidden": "true",
                 "SelectorStyle": "0"
                 }
@@ -318,13 +318,13 @@ class BasePlugin:
         commandToCall = './MyAir.py ' + Parameters["Address"] + ' ' + Parameters["Mode1"] + ' '
         if Unit == self.UNIT_POWER_CONTROL:
             commandToCall += '--power=' + str(Command).upper()
-        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
-            commandToCall += '--mode=Idle'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
-            commandToCall += '--mode=Silent'
+            commandToCall += '--mode=Idle'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
-            commandToCall += '--mode=Favorite'
+            commandToCall += '--mode=Silent'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
+            commandToCall += '--mode=Favorite'
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 40:
             commandToCall += '--mode=Auto'
         elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
             commandToCall += '--favoriteLevel=' + str(int(int(Level)/10))
@@ -508,13 +508,13 @@ class BasePlugin:
 
             try:
                 if res.mode == "OperationMode.Idle":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
-                elif res.mode == "OperationMode.Silent":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
-                elif res.mode == "OperationMode.Favorite":
+                elif res.mode == "OperationMode.Silent":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
-                elif res.mode == "OperationMode.Auto":
+                elif res.mode == "OperationMode.Favorite":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
+                elif res.mode == "OperationMode.Auto":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 40, '40')
             except KeyError:
                 pass  # No mode value
 
