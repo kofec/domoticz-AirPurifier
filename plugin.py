@@ -336,7 +336,13 @@ class BasePlugin:
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 40:
             commandToCall += '--mode=Auto'
         elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-            commandToCall += '--favoriteLevel=' + str(int(int(Level)/10))
+            setpoint = int(Level)
+            if (setpoint < 10):
+                # level 0 is ignored by device
+                # lowest value is 1
+                # highest - 10
+                setpoint = 10
+            commandToCall += '--favoriteLevel=' + str(int(setpoint/10))
         else:
             Domoticz.Log("onCommand called not found")
 
