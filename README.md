@@ -17,7 +17,9 @@ git clone https://github.com/pawcio50501/domoticz-AirPurifier
 ```
 
 * check the location of the python-miio installation and correct below variable if needed (python.py)
+```
 site_path = '/usr/local/lib/python3.6/site-packages'
+```
 
 Restart Domoticz
 * Go to Setup > Hardware and create new Hardware with type: AirPurfier
