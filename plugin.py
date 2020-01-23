@@ -1,4 +1,4 @@
-# A Python plugin for Domoticz to access AirPurifier Pro
+# A Python plugin for Domoticz to access AirPurifier 2
 #
 # Author: pawcio based on kofec solution
 #
@@ -13,11 +13,10 @@
 
 # v0.1.1 - Add initial version of switches, update to nie version of python-miio
 #
-
-# v1.0 - removed MyAir.py, adapted for the purifier pro, long taking tasks moved to other thread
+# v0.1.2 - Code cleanup
 #
 """
-<plugin key="AirPurifier" name="AirPurifier" author="pawcio" version="1.0" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
+<plugin key="AirPurifier" name="AirPurifier" author="kofec/pawcio" version="0.1.2" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/pawcio50501/domoticz-AirPurifier">
     <params>
 		<param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
 		<param field="Mode1" label="AirPurifier Token" default="" width="400px" required="true"  />
@@ -44,7 +43,6 @@ for i in path:
     sys.path.append(i)
     
 import glob    
-# update site-packages path to the real one
 site_path = '/usr/local/lib/python3.6/site-packages'
 sys.path.append(site_path)
 eggs = [f for f in glob.glob(site_path + "**/*.egg", recursive=False)]
@@ -121,41 +119,6 @@ L10N = {
     'en': { }
 }
 
-ATTR_MODEL = "model"
-
-# Air Purifier
-ATTR_TEMPERATURE = "temperature"
-ATTR_HUMIDITY = "humidity"
-ATTR_AIR_QUALITY_INDEX = "aqi"
-ATTR_MODE = "mode"
-ATTR_FILTER_HOURS_USED = "filter_hours_used"
-ATTR_FILTER_LIFE = "filter_life_remaining"
-ATTR_FAVORITE_LEVEL = "favorite_level"
-ATTR_BUZZER = "buzzer"
-ATTR_CHILD_LOCK = "child_lock"
-ATTR_LED = "led"
-ATTR_LED_BRIGHTNESS = "led_brightness"
-ATTR_MOTOR_SPEED = "motor_speed"
-ATTR_AVERAGE_AIR_QUALITY_INDEX = "average_aqi"
-ATTR_PURIFY_VOLUME = "purify_volume"
-ATTR_BRIGHTNESS = "brightness"
-ATTR_LEVEL = "level"
-ATTR_MOTOR2_SPEED = "motor2_speed"
-ATTR_ILLUMINANCE = "illuminance"
-ATTR_FILTER_RFID_PRODUCT_ID = "filter_rfid_product_id"
-ATTR_FILTER_RFID_TAG = "filter_rfid_tag"
-ATTR_FILTER_TYPE = "filter_type"
-ATTR_LEARN_MODE = "learn_mode"
-ATTR_SLEEP_TIME = "sleep_time"
-ATTR_SLEEP_LEARN_COUNT = "sleep_mode_learn_count"
-ATTR_EXTRA_FEATURES = "extra_features"
-ATTR_FEATURES = "features"
-ATTR_TURBO_MODE_SUPPORTED = "turbo_mode_supported"
-ATTR_AUTO_DETECT = "auto_detect"
-ATTR_SLEEP_MODE = "sleep_mode"
-ATTR_VOLUME = "volume"
-ATTR_USE_TIME = "use_time"
-ATTR_BUTTON_PRESSED = "button_pressed"
 
 def _(key):
     try:
@@ -178,51 +141,13 @@ class ConnectionErrorException(Exception):
         self.expression = expression
         self.message = message
 
-# temporery class
-
-class AirStatus:
-    """Container for status reports from the air purifier."""
-
-    def __init__(self, AddressIP, token):
-        """
-        Response of script:
-
-               "<AirPurifierStatus power=on, aqi=10,average_aqi=8,temperature=21.9, humidity=36%," \
-               "mode=OperationMode.Silent,led=True,led_brightness=LedBrightness.Bright,buzzer=False, " \
-               "child_lock=False,favorite_level=10,filter_life_remaining=70, filter_hours_used=1044, " \
-               "use_time=3748042, purify_volume=38007, motor_speed=354> "
-        """
-
-        addressIP = str(AddressIP)
-        token = str(token)
-        try:
-            data = subprocess.check_output(['bash', '-c', './MyAir.py ' + addressIP + ' ' + token + ' --status'], cwd=Parameters["HomeFolder"])
-            data = str(data.decode('utf-8'))
-            if Parameters["Mode6"] == 'Debug':
-                Domoticz.Debug(data[:30] + " .... " + data[-30:])
-            data = data[19:-2]
-            data = data.replace(' ', '')
-            data = dict(item.split("=") for item in data.split(","))
-            self.aqi = data["aqi"]
-            self.average_aqi = data["average_aqi"]
-            self.power = data["power"]
-            self.humidity = int(data["humidity"][:-1])
-            self.temperature = str(format(float(data["temperature"]), '.1f'))
-            self.mode = data["mode"]
-            self.favorite_level = data["favorite_level"]
-            self.motor_speed = data["motor_speed"]
-            for item in data.keys():
-                Domoticz.Debug(str(item) + " => " + str(data[item]))
-        except subprocess.CalledProcessError as e:
-            Domoticz.Log("Something fail: " + e.output.decode())
-
 class BasePlugin:
     enabled = False
     MyAir = None
     
     def __init__(self):
         # Consts
-        self.version = "1.0"
+        self.version = "0.1.2"
 
         self.EXCEPTIONS = {
             "SENSOR_NOT_FOUND":     1,
@@ -280,6 +205,7 @@ class BasePlugin:
                 self.messageQueue.task_done()
         except Exception as err:
             Domoticz.Error("handleMessage: "+str(err))
+            self.MyAir = None
             
     def onStart(self):
         #Domoticz.Log("path: " + str(sys.path))
