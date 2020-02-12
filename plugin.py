@@ -167,13 +167,12 @@ class BasePlugin:
         self.UNIT_POWER_CONTROL         = 10
         self.UNIT_MODE_CONTROL          = 11
         self.UNIT_MOTOR_SPEED_FAVORITE  = 12
-
+        self.UNIT_CHILD_LOCK            = 13
+        self.UNIT_BEEP                  = 15
 
         self.nextpoll = datetime.datetime.now()
         self.messageQueue = queue.Queue()
         self.messageThread = threading.Thread(name="QueueThreadPurifier", target=BasePlugin.handleMessage, args=(self,))
-
-        return
 
     def connectIfNeeded(self):
         for i in range(1, 6):
@@ -181,6 +180,7 @@ class BasePlugin:
                 if None == self.MyAir:
                     self.MyAir = miio.airpurifier.AirPurifier(Parameters["Address"], Parameters["Mode1"])
                 break;
+            
             except miio.airpurifier.AirPurifierException as e:
                 Domoticz.Error("connectIfNeeded: " + str(e))
                 self.MyAir = None
@@ -219,7 +219,6 @@ class BasePlugin:
 
         Domoticz.Heartbeat(20)
         self.pollinterval = int(Parameters["Mode3"]) * 60
-
 
         self.variables = {
             self.UNIT_AIR_QUALITY_INDEX: {
@@ -271,51 +270,64 @@ class BasePlugin:
                 "nValue":   0,
                 "sValue":   None,
             },
+            self.UNIT_CHILD_LOCK: {
+                "Name":     _("Child Lock"),
+                "TypeName": "Switch",
+                "Image":    7,
+                "Used":     0,
+                "nValue":   0,
+                "sValue":   None,
+            },
+            self.UNIT_BEEP: {
+                "Name":     _("Beep"),
+                "TypeName": "Switch",
+                "Image":    7,
+                "Used":     0,
+                "nValue":   0,
+                "sValue":   None,
+            },       
         }
 
-        #create switches
-        if (len(Devices) == 0):
+        # Create switches - if not exist
+        if self.UNIT_POWER_CONTROL in Devices:
+            Domoticz.Log("Device UNIT_POWER_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
+        else:
             Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
+
+        if self.UNIT_CHILD_LOCK in Devices:
+            Domoticz.Log("Device UNIT_CHILD_LOCK with id " + str(self.UNIT_CHILD_LOCK) + " exist")
+        else:
+            Domoticz.Device(Name="Child Lock", Unit=self.UNIT_CHILD_LOCK, TypeName="Switch", Image=7).Create()
+
+        if self.UNIT_BEEP in Devices:
+            Domoticz.Log("Device UNIT_BEEP with id " + str(self.UNIT_BEEP) + " exist")
+        else:
+            Domoticz.Device(Name="Beep", Unit=self.UNIT_BEEP, TypeName="Switch", Image=7).Create()
+
+        if self.UNIT_MODE_CONTROL in Devices:
+            Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_MODE_CONTROL) + " exist")
+        else:
             Options = {"LevelActions": "||||",
-                       "LevelNames": "Idle|Silent|Favorite|Auto",
-                       "LevelOffHidden": "false",
-                       "SelectorStyle": "0"
-                      }
+                    "LevelNames": "Idle|Silent|Favorite|Auto",
+                    "LevelOffHidden": "false",
+                    "SelectorStyle": "0"
+                    }
             Domoticz.Device(Name="Mode", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
                             Image=7,
                             Options=Options).Create()
-            Domoticz.Log("Devices created.")
-                            
+        
+        if self.UNIT_MOTOR_SPEED_FAVORITE in Devices:
+            Domoticz.Log("Device UNIT_MOTOR_SPEED_FAVORITE with id " + str(self.UNIT_MOTOR_SPEED_FAVORITE) + " exist")
+        else:
             Options = {"LevelActions": "|||||||||||||||||",
-                       "LevelNames": "1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17",
-                       "LevelOffHidden": "false",
-                       "SelectorStyle": "0"
-                      }
+                    "LevelNames": "1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17",
+                    "LevelOffHidden": "false",
+                    "SelectorStyle": "0"
+                    }
             Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, TypeName="Selector Switch", Switchtype=18,
                             Image=7,
                             Options=Options).Create()
-                            
-        else:
-            if (self.UNIT_POWER_CONTROL in Devices ):
-                Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
-            else:
-                Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
-            if (self.UNIT_MODE_CONTROL in Devices ):
-                Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_MODE_CONTROL) + " exist")
-            # else:
-                # Options = {"LevelActions": "||||",
-                           # "LevelNames": "Idle|Silent|Favorite|Auto",
-                           # "LevelOffHidden": "false",
-                           # "SelectorStyle": "0"
-                           # }
-                # Domoticz.Device(Name="Mode", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                                # Image=7,
-                                # Options=Options).Create()
-            if (self.UNIT_MOTOR_SPEED_FAVORITE in Devices ):
-                Domoticz.Log("Device UNIT_MOTOR_SPEED_FAVORITE with id " + str(self.UNIT_MOTOR_SPEED_FAVORITE) + " exist")
-            # else:
-                # Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
-
+        
         self.messageThread.start()
         self.onHeartbeat(fetch=False)
 
@@ -345,10 +357,8 @@ class BasePlugin:
 
     def onCommandInternal(self, func, *arg):
         try:
-            stat = func(*arg)
-                
+            stat = func(*arg)               
             Domoticz.Log(str(stat))
-            
             self.onHeartbeat(fetch=True)
         except miio.airpurifier.AirPurifierException as e:
             Domoticz.Log("Something fail: " + e.output.decode())
@@ -377,6 +387,12 @@ class BasePlugin:
         elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
             mthd = self.MyAir.set_favorite_level
             arg = [int(int(Level)/10 + 1)]
+        elif Unit == self.UNIT_CHILD_LOCK:
+            mthd = self.MyAir.set_child_lock
+            arg = [True if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else False]
+        elif Unit == self.UNIT_BEEP:
+            mthd = self.MyAir.set_volume
+            arg = [50 if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else 0]
         else:
             Domoticz.Log("onCommand called not found")
 
@@ -385,7 +401,6 @@ class BasePlugin:
             
         Domoticz.Log(str({"Type":"onCommand", "Mthd":mthd, "Arg":arg}))
         self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})            
-
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
@@ -532,6 +547,18 @@ class BasePlugin:
 
             UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(int(res.favorite_level)-1)*10))
             
+            # child lock
+            if res.child_lock:
+                UpdateDevice(self.UNIT_CHILD_LOCK, 1, "ChildLock ON")
+            else:
+                UpdateDevice(self.UNIT_CHILD_LOCK, 0, "ChildLock OFF")
+            
+             # beep
+            if res.volume is not None and res.volume > 0:
+                UpdateDevice(self.UNIT_BEEP, 1, "Beep ON")
+            else:
+                UpdateDevice(self.UNIT_BEEP, 0, "Beep OFF")
+            
             self.doUpdate()
             
         except miio.airpurifier.AirPurifierException as e:
@@ -539,14 +566,10 @@ class BasePlugin:
             self.MyAir = None
             return
 
-
-
     def onHeartbeat(self, fetch=False):
         Domoticz.Debug("onHeartbeat called")
         self.messageQueue.put({"Type":"onHeartbeat", "Fetch":fetch})
-
         return True
-
 
     def doUpdate(self):
         Domoticz.Log(_("Starting device update"))
