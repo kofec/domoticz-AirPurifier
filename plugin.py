@@ -174,39 +174,43 @@ class BasePlugin:
         self.messageQueue = queue.Queue()
         self.messageThread = threading.Thread(name="QueueThreadPurifier", target=BasePlugin.handleMessage, args=(self,))
 
+        return
+
     def connectIfNeeded(self):
         for i in range(1, 6):
             try:
                 if None == self.MyAir:
                     self.MyAir = miio.airpurifier.AirPurifier(Parameters["Address"], Parameters["Mode1"])
                 break;
-            
             except miio.airpurifier.AirPurifierException as e:
                 Domoticz.Error("connectIfNeeded: " + str(e))
                 self.MyAir = None
             
     def handleMessage(self):
-        try:
-            Domoticz.Debug("Entering message handler")
-            while True:
+        Domoticz.Debug("Entering message handler")
+        while True:
+            try:
                 Message = self.messageQueue.get(block=True)
                 if Message is None:
                     Domoticz.Debug("Exiting message handler")
                     self.messageQueue.task_done()
                     break
-
+                    
                 self.connectIfNeeded()
-                
+                    
                 if (Message["Type"] == "onHeartbeat"):
                     self.onHeartbeatInternal(Message["Fetch"])
                 elif (Message["Type"] == "onCommand"):
                     self.onCommandInternal(Message["Mthd"], *Message["Arg"])
                     
                 self.messageQueue.task_done()
-        except Exception as err:
-            Domoticz.Error("handleMessage: "+str(err))
-            self.MyAir = None
-            
+                
+            except Exception as err:
+                Domoticz.Error("handleMessage: "+str(err))
+                self.MyAir = None
+                with self.messageQueue.mutex:
+                   	self.messageQueue.queue.clear()
+                    
     def onStart(self):
         #Domoticz.Log("path: " + str(sys.path))
         Domoticz.Debug("onStart called")
@@ -219,6 +223,7 @@ class BasePlugin:
 
         Domoticz.Heartbeat(20)
         self.pollinterval = int(Parameters["Mode3"]) * 60
+
 
         self.variables = {
             self.UNIT_AIR_QUALITY_INDEX: {
@@ -334,9 +339,12 @@ class BasePlugin:
     def onStop(self):
         Domoticz.Log("onStop called")
         
+        with self.messageQueue.mutex:
+            self.messageQueue.queue.clear()
+    
         # signal queue thread to exit
         self.messageQueue.put(None)
-        Domoticz.Log("Clearing message queue...")
+        Domoticz.Log("Clearing message queue ...")
         self.messageQueue.join()
         
         # Wait until queue thread has exited
@@ -357,8 +365,10 @@ class BasePlugin:
 
     def onCommandInternal(self, func, *arg):
         try:
-            stat = func(*arg)               
+            stat = func(*arg)
+                
             Domoticz.Log(str(stat))
+            
             self.onHeartbeat(fetch=True)
         except miio.airpurifier.AirPurifierException as e:
             Domoticz.Log("Something fail: " + e.output.decode())
@@ -401,6 +411,7 @@ class BasePlugin:
             
         Domoticz.Log(str({"Type":"onCommand", "Mthd":mthd, "Arg":arg}))
         self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})            
+
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
@@ -566,10 +577,14 @@ class BasePlugin:
             self.MyAir = None
             return
 
+
+
     def onHeartbeat(self, fetch=False):
         Domoticz.Debug("onHeartbeat called")
         self.messageQueue.put({"Type":"onHeartbeat", "Fetch":fetch})
+
         return True
+
 
     def doUpdate(self):
         Domoticz.Log(_("Starting device update"))
