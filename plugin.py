@@ -15,6 +15,8 @@
 #
 # v0.1.2 - Code cleanup
 #
+# v0.1.3 - Improved temperature parser
+#
 """
 <plugin key="AirPurifier" name="AirPurifier" author="kofec/pawcio" version="0.1.2" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/pawcio50501/domoticz-AirPurifier">
     <params>
@@ -494,7 +496,7 @@ class BasePlugin:
             
             self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
             self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(res.aqi)
-            self.variables[self.UNIT_TEMPERATURE]['sValue'] = res.temperature
+            self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
             self.variables[self.UNIT_MOTOR_SPEED]['sValue'] = str(res.motor_speed)
 
             if res.power == "on":
@@ -594,7 +596,7 @@ class BasePlugin:
 
             # cast float to str
             if isinstance(sV, float):
-                sV = str(float("{0:.0f}".format(sV))).replace('.', ',')
+                sV = str(float("{0:.1f}".format(sV))).replace('.', ',')
 
             # Create device if required
             if sV:
