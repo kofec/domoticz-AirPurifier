@@ -230,14 +230,14 @@ class BasePlugin:
                 "Name":     _("Air pollution Level"),
                 "TypeName": "Alert",
                 "Image":    7,
-                "Used":     0,
+                "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
             },
             self.UNIT_TEMPERATURE: {
                 "Name":     _("Temperature"),
                 "TypeName": "Temperature",
-                "Used":     0,
+                "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
             },
@@ -259,40 +259,52 @@ class BasePlugin:
             },
         }
 
+        create_power_sw = True
+        create_source_sw = True
+        create_fan_sw = True
+
         #create switches
-        if (len(Devices) == 0):
-            Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
-            Options = {"LevelActions": "||||",
-                       "LevelNames": "Auto|Silent|Favorite|Idle",
-                       "LevelOffHidden": "true",
-                       "SelectorStyle": "0"
-                      }
-            Domoticz.Device(Name="Source", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                            Image=7,
-                            Options=Options).Create()
-            Domoticz.Log("Devices created.")
-            Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73,
-                            Switchtype=7, Image=7).Create()
-        else:
-            if (self.UNIT_POWER_CONTROL in Devices ):
-                Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
-            else:
-                Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
-            if (self.UNIT_MODE_CONTROL in Devices ):
+        if (len(Devices) > 0):
+            if ( self.UNIT_POWER_CONTROL in Devices ):
+                Domoticz.Log("Device UNIT_POWER_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
+                create_power_sw = False
+
+            if ( self.UNIT_MODE_CONTROL in Devices ):
                 Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_MODE_CONTROL) + " exist")
-            else:
-                Options = {"LevelActions": "||||",
-                           "LevelNames": "Idle|Silent|Favorite|Auto",
-                           "LevelOffHidden": "false",
-                           "SelectorStyle": "0"
-                           }
-                Domoticz.Device(Name="Mode", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                                Image=7,
-                                Options=Options).Create()
-            if (self.UNIT_MOTOR_SPEED_FAVORITE in Devices ):
+                create_source_sw = False
+
+            if ( self.UNIT_MOTOR_SPEED_FAVORITE in Devices ):
                 Domoticz.Log("Device UNIT_MOTOR_SPEED_FAVORITE with id " + str(self.UNIT_MOTOR_SPEED_FAVORITE) + " exist")
-            else:
-                Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
+                create_fan_sw = False
+
+        if create_power_sw:
+            Domoticz.Device(Name="Power",
+                            Unit=self.UNIT_POWER_CONTROL,
+                            TypeName="Switch",
+                            Image=7,
+                            Used=1).Create()
+            Domoticz.Log("Power device created.")
+
+        if create_source_sw:
+            ModeOptions = {"LevelActions": "||||",
+                "LevelNames": "Off|Idle|Silent|Favorite|Auto",
+                "LevelOffHidden": "true",
+                "SelectorStyle": "0"
+                }
+
+            Domoticz.Device(Name="Source",
+                            Unit=self.UNIT_MODE_CONTROL,
+                            TypeName="Selector Switch",
+                            Switchtype=18,
+                            Image=7,
+                            Options=ModeOptions,
+                            Used=1).Create()
+            Domoticz.Log("Source device created.")
+
+        if create_fan_sw:
+            Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73,
+                Switchtype=7, Image=7).Create()
+            Domoticz.Log("Favorite device created.")
 
         self.onHeartbeat(fetch=False)
 
@@ -314,16 +326,23 @@ class BasePlugin:
         commandToCall = './MyAir.py ' + Parameters["Address"] + ' ' + Parameters["Mode1"] + ' '
         if Unit == self.UNIT_POWER_CONTROL:
             commandToCall += '--power=' + str(Command).upper()
-        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
-            commandToCall += '--mode=Idle'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
-            commandToCall += '--mode=Silent'
+            ## On my device there is no mode Idle
+            commandToCall += '--mode=Idle'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
-            commandToCall += '--mode=Favorite'
+            commandToCall += '--mode=Silent'
         elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
+            commandToCall += '--mode=Favorite'
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 40:
             commandToCall += '--mode=Auto'
         elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-            commandToCall += '--favoriteLevel=' + str(int(int(Level)/10))
+            setpoint = int(Level)
+            if (setpoint < 10):
+                # level 0 is ignored by device
+                # lowest value is 1
+                # highest - 10
+                setpoint = 10
+            commandToCall += '--favoriteLevel=' + str(int(setpoint/10))
         else:
             Domoticz.Log("onCommand called not found")
 
@@ -504,13 +523,13 @@ class BasePlugin:
 
             try:
                 if res.mode == "OperationMode.Idle":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
-                elif res.mode == "OperationMode.Silent":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
-                elif res.mode == "OperationMode.Favorite":
+                elif res.mode == "OperationMode.Silent":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
-                elif res.mode == "OperationMode.Auto":
+                elif res.mode == "OperationMode.Favorite":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
+                elif res.mode == "OperationMode.Auto":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 40, '40')
             except KeyError:
                 pass  # No mode value
 
