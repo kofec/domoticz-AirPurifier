@@ -1,5 +1,5 @@
 # domoticz-AirPurifier
-Domoticz plugin for Xiaomi AirPurifier 2
+Domoticz plugin for Xiaomi AirPurifier 2/2S
 * Based on repository https://github.com/lrybak/domoticz-airly/
 * and script for Samsung TV: https://www.domoticz.com/wiki/Plugins/SamsungTV.html
 * and base on repository https://github.com/rytilahti/python-miio
@@ -18,7 +18,7 @@ cd YOUR_DOMOTICZ_PATH/plugins
 git clone https://github.com/kofec/domoticz-AirPurifier
 ```
 First use script "MyAir.py" to verify if you have needed python modules
-e.g: 
+e.g:
 ```
 ./MyAir.py 192.168.1.1 850000000000000000000000002 --debug
 ./MyAir.py -h
@@ -27,7 +27,7 @@ usage: MyAir.py [-h] [--mode {Auto,Favorite,Idle,Silent}]
                 [--debug]
                 IPaddress token
 
-Script which comunicate with AirPurfier 2.
+Script which comunicate with AirPurfier 2/2S.
 
 positional arguments:
   IPaddress             IP address of AirPurfier
@@ -41,6 +41,7 @@ optional arguments:
                         choose mode operation
   --power {ON,OFF}      power ON/OFF
   --debug               if define more output is printed
+  --led {ON,OFF}        turn led on/off
 ```
 * check where modules was installed and in file plugin.py find and correct below variable (in my case 2 instances) if needed
 pathOfPackages = '/usr/local/lib/python3.5/dist-packages'
