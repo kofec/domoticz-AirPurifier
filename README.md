@@ -1,5 +1,5 @@
 # domoticz-AirPurifier
-Domoticz plugin for Xiaomi AirPurifier 2/2S
+Domoticz plugin for Xiaomi AirPurifier 2/2S and Pro
 * Based on repository https://github.com/lrybak/domoticz-airly/
 * and script for Samsung TV: https://www.domoticz.com/wiki/Plugins/SamsungTV.html
 * and base on repository https://github.com/rytilahti/python-miio
@@ -33,6 +33,7 @@ positional arguments:
   IPaddress             IP address of AirPurfier
   token                 token to login to device
 
+* check the location of the python-miio installation and correct below variable if needed (python.py)
 optional arguments:
   -h, --help            show this help message and exit
   --mode {Auto,Favorite,Idle,Silent}
@@ -43,8 +44,8 @@ optional arguments:
   --debug               if define more output is printed
   --led {ON,OFF}        turn led on/off
 ```
-* check where modules was installed and in file plugin.py find and correct below variable (in my case 2 instances) if needed
-pathOfPackages = '/usr/local/lib/python3.5/dist-packages'
+site_path = '/usr/local/lib/python3.6/site-packages'
+```
 
 Restart Domoticz
 * Go to Setup > Hardware and create new Hardware with type: AirPurfier
