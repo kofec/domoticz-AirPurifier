@@ -201,24 +201,6 @@ class BasePlugin:
         self.messageThread = threading.Thread(name="QueueThreadPurifier", target=BasePlugin.handleMessage, args=(self,))
         return
 
-    def handleMessage(self):
-        try:
-            Domoticz.Debug("Entering message handler")
-            while True:
-                Message = self.messageQueue.get(block=True)
-                if Message is None:
-                    Domoticz.Debug("Exiting message handler")
-                    self.messageQueue.task_done()
-                    break
-
-                if Message["Type"] == "Heartbeat":
-                    self.onHeartbeatInternal(Message["fetch"])
-                elif Message["Type"] == "Command":
-                    self.onCommandInternal(Message["Unit"], Message["Command"], Message["Level"], Message["Hue"])
-                self.messageQueue.task_done()
-        except Exception as err:
-            Domoticz.Error("handleMessage: "+str(err))
-
     def connectIfNeeded(self):
         for i in range(1, 6):
             try:
@@ -405,34 +387,12 @@ class BasePlugin:
             Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, TypeName="Selector Switch", Switchtype=18,
                             Image=7,
                             Options=Options).Create()
-
-        self.messageThread.start()
-        self.onHeartbeat(fetch=False)
-        if self.UNIT_POWER_CONTROL in Devices:
-            Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_POWER_CONTROL) + " exist")
-        else:
-            Domoticz.Device(Name="Power", Unit=self.UNIT_POWER_CONTROL, TypeName="Switch", Image=7).Create()
-        if (self.UNIT_MODE_CONTROL in Devices ):
-            Domoticz.Log("Device UNIT_MODE_CONTROL with id " + str(self.UNIT_MODE_CONTROL) + " exist")
-        else:
-            Options = {"LevelActions": "||||",
-                       "LevelNames": "Idle|Silent|Favorite|Auto",
-                       "LevelOffHidden": "false",
-                       "SelectorStyle": "0"
-                       }
-            Domoticz.Device(Name="Mode", Unit=self.UNIT_MODE_CONTROL, TypeName="Selector Switch", Switchtype=18,
-                            Image=7,
-                            Options=Options).Create()
-        if (self.UNIT_MOTOR_SPEED_FAVORITE in Devices ):
-            Domoticz.Log("Device UNIT_MOTOR_SPEED_FAVORITE with id " + str(self.UNIT_MOTOR_SPEED_FAVORITE) + " exist")
-        else:
-            Domoticz.Device(Name="Fan Favorite level", Unit=self.UNIT_MOTOR_SPEED_FAVORITE, Type=244, Subtype=73, Switchtype=7, Image=7).Create()
-
         if (self.UNIT_LED in Devices):
             Domoticz.Log("Device UNIT_LED with id " + str(self.UNIT_LED) + " exist")
         else:
             Domoticz.Device(Name="Fan LED", Unit=self.UNIT_LED, TypeName="Switch", Image=7).Create()
 
+        self.messageThread.start()
         self.onHeartbeat(fetch=False)
 
     def onStop(self):
@@ -456,19 +416,6 @@ class BasePlugin:
 
         Domoticz.Debugging(0)
 
-        # signal queue thread to exit
-        self.messageQueue.put(None)
-        Domoticz.Log("Clearing message queue...")
-        self.messageQueue.join()
-
-        # Wait until queue thread has exited
-        Domoticz.Log("Threads still active: "+str(threading.active_count())+", should be 1.")
-        while (threading.active_count() > 1):
-            for thread in threading.enumerate():
-                if (thread.name != threading.current_thread().name):
-                    Domoticz.Log("'"+thread.name+"' is still running, waiting otherwise Domoticz will abort on plugin exit.")
-            time.sleep(1.0)
-
     def onConnect(self, Status, Description):
         Domoticz.Log("onConnect called")
 
@@ -485,81 +432,52 @@ class BasePlugin:
         except miio.airpurifier.AirPurifierException as e:
             Domoticz.Log("Something fail: " + e.output.decode())
             self.onHeartbeat(fetch=False)
+        except Exception as e:
+            Domoticz.Error(_("Unrecognized command error: %s") % str(e))
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
-        self.messageQueue.put({"Type": "Command", "Unit": Unit, "Command": Command, "Level": Level, "Hue": Hue})
+#        self.messageQueue.put({"Type": "Command", "Unit": Unit, "Command": Command, "Level": Level, "Hue": Hue})
 
-    def onCommandInternal(self, Unit, Command, Level, Hue):
-        try:
-            Domoticz.Log(
-                "onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        mthd = None
+        arg = []
 
-            mthd = None
-            arg = []
+        if Unit == self.UNIT_POWER_CONTROL:
+            mthd = self.MyAir.on if str(Command).upper() == "ON" else self.MyAir.off
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
+            mthd = self.MyAir.set_mode
+            arg = [OperationMode.Idle]
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
+            mthd = self.MyAir.set_mode
+            arg = [OperationMode.Silent]
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
+            mthd = self.MyAir.set_mode
+            arg = [OperationMode.Favorite]
+        elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
+            mthd = self.MyAir.set_mode
+            arg = [OperationMode.Auto]
+        elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
+            mthd = self.MyAir.set_favorite_level
+            arg = [int(int(Level)/10 + 1)]
+        elif Unit == self.UNIT_CHILD_LOCK:
+            mthd = self.MyAir.set_child_lock
+            arg = [True if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else False]
+        elif Unit == self.UNIT_BEEP:
+            mthd = self.MyAir.set_volume
+            arg = [50 if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else 0]
+        elif Unit == self.UNIT_LED:
+            enabled = str(Command).upper() == "ON"
+            mthd = self.myAir.set_led(enabled)
+            self.UpdateLedStatus(enabled)
+        else:
+            Domoticz.Log("onCommand called not found")
 
-            if Unit == self.UNIT_POWER_CONTROL:
-                mthd = self.MyAir.on if str(Command).upper() == "ON" else self.MyAir.off
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
-                mthd = self.MyAir.set_mode
-                arg = [OperationMode.Idle]
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
-                mthd = self.MyAir.set_mode
-                arg = [OperationMode.Silent]
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
-                mthd = self.MyAir.set_mode
-                arg = [OperationMode.Favorite]
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
-                mthd = self.MyAir.set_mode
-                arg = [OperationMode.Auto]
-            elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-                mthd = self.MyAir.set_favorite_level
-                arg = [int(int(Level)/10 + 1)]
-            elif Unit == self.UNIT_CHILD_LOCK:
-                mthd = self.MyAir.set_child_lock
-                arg = [True if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else False]
-            elif Unit == self.UNIT_BEEP:
-                mthd = self.MyAir.set_volume
-                arg = [50 if str(Command).upper() == "TRUE" or str(Command).upper() == "ON" else 0]
-            else:
-                Domoticz.Log("onCommand called not found")
+        if None == mthd:
+            return
 
-            if None == mthd:
-                return
+        Domoticz.Log(str({"Type":"onCommand", "Mthd":mthd, "Arg":arg}))
+        self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})
 
-            Domoticz.Log(str({"Type":"onCommand", "Mthd":mthd, "Arg":arg}))
-            self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})
-
-            # Parameters["Address"] - IP address, Parameters["Mode1"] - token
-            if Unit == self.UNIT_POWER_CONTROL:
-                if str(Command).upper() == "ON":
-                    self.myAir.on()
-                    UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
-                elif str(Command).upper() == "OFF":
-                    self.myAir.off()
-                    UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 0:
-                self.myAir.set_mode(miio.airpurifier.OperationMode.Idle)
-                UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 10:
-                self.myAir.set_mode(miio.airpurifier.OperationMode.Silent)
-                UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 20:
-                self.myAir.set_mode(miio.airpurifier.OperationMode.Favorite)
-                UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
-            elif Unit == self.UNIT_MODE_CONTROL and int(Level) == 30:
-                self.myAir.set_mode(miio.airpurifier.OperationMode.Auto)
-                UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
-            elif Unit == self.UNIT_MOTOR_SPEED_FAVORITE:
-                self.myAir.set_favorite_level(int(int(Level)/10))
-            elif Unit == self.UNIT_LED:
-                enabled = str(Command).upper() == "ON"
-                self.myAir.set_led(enabled)
-                self.UpdateLedStatus(enabled)
-            else:
-                Domoticz.Log("onCommand called not found")
-        except Exception as e:
-            Domoticz.Error(_("Unrecognized command error: %s") % str(e))
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
@@ -644,22 +562,15 @@ class BasePlugin:
 
         # Set next pool time
         self.postponeNextPool(seconds=self.pollinterval)
-        self.messageQueue.put({"Type": "Heartbeat", "fetch": fetch})
+#        self.messageQueue.put({"Type": "Heartbeat", "fetch": fetch})
 
-    def onHeartbeatInternal(self, fetch=False):
         try:
             res = self.MyAir.status()
             Domoticz.Log(str(res))
-
-            self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
-            self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(res.aqi)
-            self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
-            self.variables[self.UNIT_MOTOR_SPEED]['sValue'] = str(res.motor_speed)
             # check if another thread is not running
             # and time between last fetch has elapsed
             self.inProgress = True
 
-            res = self.sensor_measurement()
 
             try:
                 self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
@@ -670,6 +581,16 @@ class BasePlugin:
                 self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(res.aqi)
             except KeyError:
                 pass  # No airQualityIndex value
+
+            try:
+                self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
+            except KeyError:
+                pass  # No temperature value
+
+            try:
+                self.variables[self.UNIT_MOTOR_SPEED]['sValue'] = str(res.motor_speed)
+            except KeyError:
+                pass  # No motor_speed value
 
             if res.power == "on":
                 UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
@@ -685,6 +606,8 @@ class BasePlugin:
             #       201–300	Heavily Polluted
             #       300+	Severely Polluted
 
+            # sometimes response has 10 times lower value - uncomment below
+            # res.aqi = int(res.aqi) * 10
             if int(res.aqi) < 50:
                 pollutionLevel = 1  # green
                 pollutionText = _("Great air quality")
@@ -705,23 +628,7 @@ class BasePlugin:
                 pollutionText = _("Really bad air quality")
             else:
                 pollutionLevel = 0
-            if int(res.aqi) < 5:
-                pollutionLevel = 1  # green
-                pollutionText = _("Great air quality")
-            elif int(res.aqi) < 10:
-                pollutionLevel = 1  # green
-                pollutionText = _("Good air quality")
-            elif int(res.aqi) < 20:
-                pollutionLevel = 2  # yellow
-                pollutionText = _("Average air quality")
-            elif int(res.aqi) < 30:
-                pollutionLevel = 3  # orange
-                pollutionText = _("Poor air quality")
-            elif int(res.aqi) >= 30:
-                pollutionLevel = 4  # red
-                pollutionText = _("Really bad air quality")
-            else:
-                pollutionLevel = 0
+
 
             self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
             self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
@@ -742,16 +649,6 @@ class BasePlugin:
 
             except KeyError:
                 pass  # No humidity value
-
-            try:
-                self.variables[self.UNIT_TEMPERATURE]['sValue'] = str(res.temperature)
-            except KeyError:
-                pass  # No temperature value
-
-            try:
-                self.variables[self.UNIT_MOTOR_SPEED]['sValue'] = str(res.motor_speed)
-            except KeyError:
-                pass  # No motor_speed value
 
             try:
                 self.variables[self.FILTER_WORK_HOURS]['nValue'] = res.filter_hours_used
@@ -846,10 +743,6 @@ class BasePlugin:
                 if unit in Devices:
                     Domoticz.Log(_("Update unit=%d; nValue=%d; sValue=%s") % (unit, nV, sV))
                     Devices[unit].Update(nValue=nV, sValue=sV)
-
-    def sensor_measurement(self):
-        """current sensor measurements"""
-        return self.myAir.status()
 
 
 global _plugin
