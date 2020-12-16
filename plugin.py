@@ -189,10 +189,8 @@ class BasePlugin:
         self.UNIT_BEEP                  = 15
 
         self.UNIT_LED                   = 20
-
         self.FILTER_WORK_HOURS          = 21
         self.FILTER_LIFE_REMAINING      = 22
-
         self.UNIT_ILLUMINANCE_SENSOR    = 23
 
 
@@ -246,23 +244,16 @@ class BasePlugin:
         else:
             Domoticz.Debugging(0)
 
-        self.myAir = miio.airpurifier.AirPurifier(Parameters["Address"], Parameters["Mode1"])
-        self.myAir._timeout = 1
+        self.connectIfNeeded()
+        self.MyAir._timeout = 1
         self.messageThread.start()
 
         Domoticz.Heartbeat(20)
         self.pollinterval = int(Parameters["Mode3"]) * 60
 
+        res = self.MyAir.status()
+        Domoticz.Log(str(res))
         self.variables = {
-            self.UNIT_ILLUMINANCE_SENSOR: {
-                "Name":     _("Illuminance sensor"),
-                "TypeName": "Custom",
-                "Options":  {"Custom": "1;%s" % "lux"},
-                "Image":    7,
-                "Used":     1,
-                "nValue":   0,
-                "sValue":   None,
-            },
             self.FILTER_LIFE_REMAINING: {
                 "Name":     _("Filter life remaining"),
                 "TypeName": "Custom",
@@ -347,6 +338,21 @@ class BasePlugin:
                 "sValue":   None,
             },
         }
+        if res.illuminance is not None:
+            self.variables.update({self.UNIT_ILLUMINANCE_SENSOR: {
+                "Name":     _("Illuminance sensor"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "lux"},
+                "Image":    7,
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            }})
+            if (self.UNIT_ILLUMINANCE_SENSOR in Devices):
+                Domoticz.Log("Device UNIT_ILLUMINANCE_SENSOR with id " + str(self.UNIT_ILLUMINANCE_SENSOR) + " exist")
+            else:
+                Domoticz.Device(Name="Illuminance sensor", Unit=self.UNIT_ILLUMINANCE_SENSOR, Type=244, Subtype=73,
+                                Switchtype=7, Image=7).Create()
 
         # Create switches - if not exist
         if self.UNIT_POWER_CONTROL in Devices:
@@ -392,7 +398,6 @@ class BasePlugin:
         else:
             Domoticz.Device(Name="Fan LED", Unit=self.UNIT_LED, TypeName="Switch", Image=7).Create()
 
-        self.messageThread.start()
         self.onHeartbeat(fetch=False)
 
     def onStop(self):
@@ -425,7 +430,6 @@ class BasePlugin:
     def onCommandInternal(self, func, *arg):
         try:
             stat = func(*arg)
-
             Domoticz.Log(str(stat))
 
             self.onHeartbeat(fetch=True)
@@ -550,9 +554,11 @@ class BasePlugin:
         else:
             UpdateDevice(self.UNIT_LED, 0, "Fan LED OFF")
 
-
     def onHeartbeat(self, fetch=False):
         Domoticz.Debug("onHeartbeat called")
+        self.messageQueue.put({"Type":"onHeartbeat", "Fetch":fetch})
+        return True
+
     def onHeartbeatInternal(self, fetch=False):
         now = datetime.datetime.now()
         if fetch == False:
@@ -592,10 +598,13 @@ class BasePlugin:
             except KeyError:
                 pass  # No motor_speed value
 
-            if res.power == "on":
-                UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
-            elif res.power == "off":
-                UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
+            try:
+                if res.power == "on":
+                    UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
+                elif res.power == "off":
+                    UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
+            except KeyError:
+                pass  # No power value
 
             #       AQI	Air Pollution - base on https://en.wikipedia.org/wiki/Air_quality_index
             #       Level	Health Implications
@@ -668,13 +677,7 @@ class BasePlugin:
             except KeyError:
                 pass  # No illuminance
 
-            try:
-                if res.power == "on":
-                    UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
-                elif res.power == "off":
-                    UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
-            except KeyError:
-                pass  # No power value
+            self.doUpdate()
 
             try:
                 self.UpdateLedStatus(bool(res.led))
@@ -707,7 +710,6 @@ class BasePlugin:
             else:
                 UpdateDevice(self.UNIT_BEEP, 0, "Beep OFF")
 
-            self.doUpdate()
         except miio.airpurifier.AirPurifierException as e:
             Domoticz.Error("onHeartbeatInternal: " + str(e))
             self.MyAir = None
@@ -720,16 +722,10 @@ class BasePlugin:
             Domoticz.Debug("onHeartbeat finished")
 
 
-    def onHeartbeat(self, fetch=False):
-        Domoticz.Debug("onHeartbeat called")
-        self.messageQueue.put({"Type":"onHeartbeat", "Fetch":fetch})
-
-        return True
-
-
     def doUpdate(self):
         Domoticz.Log(_("Starting device update"))
         for unit in self.variables:
+            Domoticz.Debug(str(self.variables[unit]))
             nV = self.variables[unit]['nValue']
             sV = self.variables[unit]['sValue']
 
