@@ -556,7 +556,7 @@ class BasePlugin:
 
     def onHeartbeat(self, fetch=False):
         Domoticz.Debug("onHeartbeat called")
-        self.messageQueue.put({"Type":"onHeartbeat", "Fetch":fetch})
+        self.messageQueue.put({"Type": "onHeartbeat", "Fetch": fetch})
         return True
 
     def onHeartbeatInternal(self, fetch=False):
@@ -568,7 +568,6 @@ class BasePlugin:
 
         # Set next pool time
         self.postponeNextPool(seconds=self.pollinterval)
-#        self.messageQueue.put({"Type": "Heartbeat", "fetch": fetch})
 
         try:
             res = self.MyAir.status()
