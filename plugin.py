@@ -577,15 +577,18 @@ class BasePlugin:
             self.inProgress = True
 
             try:
-                if res.mode == "OperationMode.Idle":
+                if str(res.mode) == "OperationMode.Idle":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
-                elif res.mode == "OperationMode.Silent":
+                elif str(res.mode) == "OperationMode.Silent":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
-                elif res.mode == "OperationMode.Favorite":
+                elif str(res.mode) == "OperationMode.Favorite":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
-                elif res.mode == "OperationMode.Auto":
+                elif str(res.mode) == "OperationMode.Auto":
                     UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
+                else:
+                    Domoticz.Log("Wrong state for UNIT_MODE_CONTROL: " + str(res.mode))
             except KeyError:
+                Domoticz.Log("Cannot update: UNIT_MODE_CONTROL") 
                 pass  # No mode value
 
             UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(int(res.favorite_level)-1)*10))
@@ -611,9 +614,9 @@ class BasePlugin:
                 pass  # No motor_speed value
 
             try:
-                if res.power == "on":
+                if str(res.power) == "on":
                     UpdateDevice(self.UNIT_POWER_CONTROL, 1, "AirPurifier ON")
-                elif res.power == "off":
+                elif str(res.power) == "off":
                     UpdateDevice(self.UNIT_POWER_CONTROL, 0, "AirPurifier OFF")
             except KeyError:
                 pass  # No power value
