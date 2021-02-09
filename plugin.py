@@ -689,7 +689,7 @@ class BasePlugin:
             except KeyError:
                 pass  # No illuminance
 
-	    self.doUpdate()
+            self.doUpdate()
 
             try:
                 self.UpdateLedStatus(bool(res.led))
