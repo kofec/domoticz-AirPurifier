@@ -576,6 +576,19 @@ class BasePlugin:
             # and time between last fetch has elapsed
             self.inProgress = True
 
+            try:
+                if res.mode == "OperationMode.Idle":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
+                elif res.mode == "OperationMode.Silent":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
+                elif res.mode == "OperationMode.Favorite":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
+                elif res.mode == "OperationMode.Auto":
+                    UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
+            except KeyError:
+                pass  # No mode value
+
+            UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(int(res.favorite_level)-1)*10))
 
             try:
                 self.variables[self.UNIT_AVARAGE_AQI]['sValue'] = str(res.average_aqi)
@@ -676,27 +689,13 @@ class BasePlugin:
             except KeyError:
                 pass  # No illuminance
 
-            self.doUpdate()
+	    self.doUpdate()
 
             try:
                 self.UpdateLedStatus(bool(res.led))
             except KeyError:
                 pass  # No led value
-
-            try:
-                if res.mode == "OperationMode.Idle":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 0, '0')
-                elif res.mode == "OperationMode.Silent":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 10, '10')
-                elif res.mode == "OperationMode.Favorite":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 20, '20')
-                elif res.mode == "OperationMode.Auto":
-                    UpdateDevice(self.UNIT_MODE_CONTROL, 30, '30')
-            except KeyError:
-                pass  # No mode value
-
-            UpdateDevice(self.UNIT_MOTOR_SPEED_FAVORITE, 1, str(int(int(res.favorite_level)-1)*10))
-
+	   
             # child lock
             if res.child_lock:
                 UpdateDevice(self.UNIT_CHILD_LOCK, 1, "ChildLock ON")
