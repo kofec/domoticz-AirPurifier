@@ -17,8 +17,10 @@
 #
 # v0.1.3 - Improved temperature parser
 #
+# v0.1.4 - OnStop fix
+#
 """
-<plugin key="AirPurifier" name="AirPurifier" author="kofec/pawcio" version="0.1.2" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/pawcio50501/domoticz-AirPurifier">
+<plugin key="AirPurifier" name="AirPurifier" author="kofec/pawcio" version="0.1.4" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/pawcio50501/domoticz-AirPurifier">
     <params>
 		<param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
 		<param field="Mode1" label="AirPurifier Token" default="" width="400px" required="true"  />
@@ -210,8 +212,12 @@ class BasePlugin:
             except Exception as err:
                 Domoticz.Error("handleMessage: "+str(err))
                 self.MyAir = None
-                with self.messageQueue.mutex:
-                   	self.messageQueue.queue.clear()
+                while not self.messageQueue.empty():
+                    try:
+                        self.messageQueue.get(False)
+                    except Empty:
+                        continue
+                    self.messageQueue.task_done()
                     
     def onStart(self):
         #Domoticz.Log("path: " + str(sys.path))
@@ -341,8 +347,12 @@ class BasePlugin:
     def onStop(self):
         Domoticz.Log("onStop called")
         
-        with self.messageQueue.mutex:
-            self.messageQueue.queue.clear()
+        while not self.messageQueue.empty():
+            try:
+                self.messageQueue.get(False)
+            except Empty:
+                continue
+            self.messageQueue.task_done()
     
         # signal queue thread to exit
         self.messageQueue.put(None)
