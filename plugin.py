@@ -53,11 +53,11 @@
 import Domoticz
 import sys
 import datetime
-import socket
 import site
 import time
-path=''
-path=site.getsitepackages()
+
+path = ''
+path = site.getsitepackages()
 for i in path:
     sys.path.append(i)
 
@@ -71,10 +71,16 @@ for f in eggs:
 import threading
 import queue
 
-import miio.airpurifier
-from miio import Device, DeviceException
-from miio.airpurifier import OperationMode
-from functools import partial
+
+def versiontuple(v):
+    return tuple(map(int, (v.split("."))))
+
+import miio
+
+if versiontuple(miio.__version__) < versiontuple("0.5.12"):
+    from miio.airpurifier import OperationMode, AirPurifierException, AirPurifier
+else:
+    from miio.integrations.airpurifier.zhimi.airpurifier import OperationMode, AirPurifierException, AirPurifier
 
 L10N = {
     'pl': {
@@ -135,8 +141,9 @@ L10N = {
         "Unrecognized error: %s":
             "Nierozpoznany błąd: %s"
     },
-    'en': { }
+    'en': {}
 }
+
 
 def _(key):
     try:
@@ -144,20 +151,24 @@ def _(key):
     except KeyError:
         return key
 
+
 class UnauthorizedException(Exception):
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
+
 
 class SensorNotFoundException(Exception):
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
 
+
 class ConnectionErrorException(Exception):
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
+
 
 class BasePlugin:
     enabled = False
@@ -165,7 +176,7 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.2.3"
+        self.version = "0.2.4"
 
         self.EXCEPTIONS = {
             "SENSOR_NOT_FOUND":     1,
@@ -194,7 +205,6 @@ class BasePlugin:
         self.FILTER_LIFE_REMAINING      = 22
         self.UNIT_ILLUMINANCE_SENSOR    = 23
 
-
         self.nextpoll = datetime.datetime.now()
         self.messageQueue = queue.Queue()
         self.messageThread = threading.Thread(name="QueueThreadPurifier", target=BasePlugin.handleMessage, args=(self,))
@@ -204,9 +214,9 @@ class BasePlugin:
         for i in range(1, 6):
             try:
                 if None == self.MyAir:
-                    self.MyAir = miio.airpurifier.AirPurifier(Parameters["Address"], Parameters["Mode1"])
-                break;
-            except miio.airpurifier.AirPurifierException as e:
+                    self.MyAir = AirPurifier(Parameters["Address"], Parameters["Mode1"])
+                break
+            except AirPurifierException as e:
                 Domoticz.Error("connectIfNeeded: " + str(e))
                 self.MyAir = None
 
@@ -222,9 +232,9 @@ class BasePlugin:
 
                 self.connectIfNeeded()
 
-                if (Message["Type"] == "onHeartbeat"):
+                if Message["Type"] == "onHeartbeat":
                     self.onHeartbeatInternal(Message["Fetch"])
-                elif (Message["Type"] == "onCommand"):
+                elif Message["Type"] == "onCommand":
                     self.onCommandInternal(Message["Mthd"], *Message["Arg"])
 
                 self.messageQueue.task_done()
@@ -353,7 +363,7 @@ class BasePlugin:
                 "nValue":   0,
                 "sValue":   None,
             }})
-            if (self.UNIT_ILLUMINANCE_SENSOR in Devices):
+            if self.UNIT_ILLUMINANCE_SENSOR in Devices:
                 Domoticz.Log("Device UNIT_ILLUMINANCE_SENSOR with id " + str(self.UNIT_ILLUMINANCE_SENSOR) + " exist")
             else:
                 Domoticz.Device(Name="Illuminance sensor", Unit=self.UNIT_ILLUMINANCE_SENSOR, Type=244, Subtype=73,
@@ -422,9 +432,9 @@ class BasePlugin:
 
         # Wait until queue thread has exited
         Domoticz.Log("Threads still active: "+str(threading.active_count())+", should be 1.")
-        while (threading.active_count() > 1):
+        while threading.active_count() > 1:
             for thread in threading.enumerate():
-                if (thread.name != threading.current_thread().name):
+                if thread.name != threading.current_thread().name:
                     Domoticz.Log("'"+thread.name+"' is still running, waiting otherwise Domoticz will abort on plugin exit.")
             time.sleep(1.0)
 
@@ -442,7 +452,7 @@ class BasePlugin:
             Domoticz.Log(str(stat))
 
             self.onHeartbeat(fetch=True)
-        except miio.airpurifier.AirPurifierException as e:
+        except AirPurifierException as e:
             Domoticz.Log("Something fail: " + e.output.decode())
             self.onHeartbeat(fetch=False)
         except Exception as e:
@@ -485,12 +495,11 @@ class BasePlugin:
         else:
             Domoticz.Log("onCommand called not found")
 
-        if None == mthd:
+        if mthd is None:
             return
 
-        Domoticz.Log(str({"Type":"onCommand", "Mthd":mthd, "Arg":arg}))
-        self.messageQueue.put({"Type":"onCommand", "Mthd":mthd, "Arg":arg})
-
+        Domoticz.Log(str({"Type": "onCommand", "Mthd": mthd, "Arg": arg}))
+        self.messageQueue.put({"Type": "onCommand", "Mthd": mthd, "Arg": arg})
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(
@@ -662,7 +671,6 @@ class BasePlugin:
             else:
                 pollutionLevel = 0
 
-
             self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
             self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
 
@@ -707,20 +715,20 @@ class BasePlugin:
                 self.UpdateLedStatus(bool(res.led))
             except KeyError:
                 pass  # No led value
-	   
+
             # child lock
             if res.child_lock:
                 UpdateDevice(self.UNIT_CHILD_LOCK, 1, "ChildLock ON")
             else:
                 UpdateDevice(self.UNIT_CHILD_LOCK, 0, "ChildLock OFF")
 
-             # beep
+            # beep
             if res.volume is not None and res.volume > 0:
                 UpdateDevice(self.UNIT_BEEP, 1, "Beep ON")
             else:
                 UpdateDevice(self.UNIT_BEEP, 0, "Beep OFF")
 
-        except miio.airpurifier.AirPurifierException as e:
+        except AirPurifierException as e:
             Domoticz.Error("onHeartbeatInternal: " + str(e))
             self.MyAir = None
             return
@@ -730,7 +738,6 @@ class BasePlugin:
             self.inProgress = False
         if Parameters["Mode6"] == 'Debug':
             Domoticz.Debug("onHeartbeat finished")
-
 
     def doUpdate(self):
         Domoticz.Log(_("Starting device update"))
@@ -754,39 +761,48 @@ class BasePlugin:
 global _plugin
 _plugin = BasePlugin()
 
+
 def onStart():
     global _plugin
     _plugin.onStart()
+
 
 def onStop():
     global _plugin
     _plugin.onStop()
 
+
 def onConnect(Status, Description):
     global _plugin
     _plugin.onConnect(Status, Description)
+
 
 def onMessage(Data, Status, Extra):
     global _plugin
     _plugin.onMessage(Data, Status, Extra)
 
+
 def onCommand(Unit, Command, Level, Hue):
     global _plugin
     _plugin.onCommand(Unit, Command, Level, Hue)
+
 
 def onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile):
     global _plugin
     _plugin.onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile)
 
+
 def onDisconnect():
     global _plugin
     _plugin.onDisconnect()
+
 
 def onHeartbeat():
     global _plugin
     _plugin.onHeartbeat()
 
-    # Generic helper functions
+
+# Generic helper functions
 def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
@@ -801,9 +817,10 @@ def DumpConfigToLog():
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
 
+
 def UpdateDevice(Unit, nValue, sValue):
     # Make sure that the Domoticz device still exists (they can be deleted) before updating it
-    if (Unit in Devices):
+    if Unit in Devices:
         if (Devices[Unit].nValue != nValue) or (Devices[Unit].sValue != sValue):
             Devices[Unit].Update(nValue=nValue, sValue=str(sValue))
             Domoticz.Log("Update " + str(nValue) + ":'" + str(sValue) + "' (" + Devices[Unit].Name + ")")
