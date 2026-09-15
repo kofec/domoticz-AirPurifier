@@ -42,8 +42,11 @@
 #   - Fixed LED switch, Beep on models with a buzzer (2/2S) and error handling
 #   - Switches are updated only when their state changes
 #   - Token is not written to the log in debug mode
+# v0.3.1
+#   - Fix level names of Mode selectors created by the 2017 version
+#     (Auto|Silent|Favorite|Idle): Domoticz showed "Auto" for Idle and vice versa
 """
-<plugin key="AirPurifier" name="AirPurifier" author="ManyAuthors" version="0.3.0" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
+<plugin key="AirPurifier" name="AirPurifier" author="ManyAuthors" version="0.3.1" wikilink="https://github.com/rytilahti/python-miio" externallink="https://github.com/kofec/domoticz-AirPurifier">
     <params>
         <param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
         <param field="Mode1" label="AirPurifier Token" default="" width="400px" required="true"/>
@@ -217,6 +220,7 @@ class BasePlugin:
 
         self.myAir = os.path.join(Parameters["HomeFolder"], "MyAir.py")
         self.pollInterval = datetime.timedelta(minutes=max(1, int(Parameters["Mode3"])))
+        FixModeLevelNames()
         self.messageThread.start()
 
         Domoticz.Heartbeat(20)
@@ -386,6 +390,23 @@ def DumpConfigToLog():
         Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
+
+
+def FixModeLevelNames():
+    # Mode selectors created by the 2017 version keep its level names
+    # (Auto|Silent|Favorite|Idle, level 0 hidden), while commands use
+    # MODE_LEVELS - so Domoticz showed "Auto" for Idle and "Idle" for Auto
+    if UNIT_MODE not in Devices:
+        return
+    device = Devices[UNIT_MODE]
+    expected = DEVICES[UNIT_MODE]["Options"]
+    if device.Options.get("LevelNames") == expected["LevelNames"]:
+        return
+    Domoticz.Log("Fixing level names of '%s': '%s' -> '%s'"
+                 % (device.Name, device.Options.get("LevelNames"), expected["LevelNames"]))
+    options = dict(device.Options, LevelNames=expected["LevelNames"], LevelActions=expected["LevelActions"],
+                   LevelOffHidden=expected["LevelOffHidden"])
+    device.Update(nValue=device.nValue, sValue=device.sValue, Options=options)
 
 
 def OnOff(enabled):
